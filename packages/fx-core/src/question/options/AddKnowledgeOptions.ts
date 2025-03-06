@@ -17,7 +17,17 @@ export const AddKnowledgeOptions: CLICommandOption[] = [
     description: "Knowledge source.",
     required: true,
     default: "web-search",
-    choices: ["web-search", "oneDrive-sharePoint", "embedded-knowledge"],
+    choices: ["web-search", "oneDrive-sharePoint", "graph-connector", "embedded-knowledge"],
+  },
+  {
+    name: "search-type",
+    type: "string",
+    description: "Select Search Type",
+  },
+  {
+    name: "web-content",
+    type: "string",
+    description: "Name of Web Content.",
   },
   {
     name: "teams-manifest-file",
@@ -27,6 +37,34 @@ export const AddKnowledgeOptions: CLICommandOption[] = [
     description:
       "Specify the path for Teams app manifest template. It can be either absolute path or relative path to the project root folder, with default at './appPackage/manifest.json'",
     default: "./appPackage/manifest.json",
+  },
+  {
+    name: "oneDriveSharePointURL",
+    type: "string",
+    description: "OneDrive or SharePoint Content",
+    required: true,
+  },
+  {
+    name: "oneDriveSharePointContent",
+    type: "string",
+    description: "OneDrive or SharePoint Content",
+  },
+  {
+    name: "graph-connector-content",
+    type: "string",
+    description: "Graph Connector Content",
+    choices: ["listConnections", "inputConnectionId"],
+  },
+  {
+    name: "graph-connector-list",
+    type: "array",
+    description: "Select one or more Graph Connectors as knowledge source",
+    default: [],
+  },
+  {
+    name: "graph-connector-input",
+    type: "string",
+    description: "a connection ID for Graph Connector",
   },
   {
     name: "embedded-knowledge-files",

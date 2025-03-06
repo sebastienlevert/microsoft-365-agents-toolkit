@@ -9,7 +9,8 @@ import {
   err,
   ok,
   PluginManifestSchema,
-  File,
+  DeclarativeCopilotCapabilityName,
+  EmbeddedKnowledgeCapability,
 } from "@microsoft/teamsfx-api";
 import AdmZip from "adm-zip";
 import fs from "fs-extra";
@@ -23,11 +24,7 @@ import { DriverContext } from "../interface/commonArgs";
 import { ExecutionResult, StepDriver } from "../interface/stepDriver";
 import { addStartAndEndTelemetry } from "../middleware/addStartAndEndTelemetry";
 import { WrapDriverContext } from "../util/wrapUtil";
-import {
-  Constants,
-  EmbeddedKnowledgeLocalDirectoryName,
-  EmbeddedKnowledgeCapabilityName,
-} from "./constants";
+import { Constants } from "./constants";
 import { CreateAppPackageArgs } from "./interfaces/CreateAppPackageArgs";
 import { manifestUtils } from "./utils/ManifestUtils";
 import { InvalidFileOutsideOfTheDirectotryError } from "../../../error/teamsApp";
@@ -346,14 +343,17 @@ export class CreateAppPackageDriver implements StepDriver {
         if (featureFlagManager.getBooleanValue(FeatureFlags.EmbeddedKnowledgeEnabled)) {
           if (getCopilotGptRes.value.capabilities) {
             const embeddedKnowledgeCapabilities = getCopilotGptRes.value.capabilities.filter(
-              (capability) => capability.name === EmbeddedKnowledgeCapabilityName
+              (capability) => capability.name === DeclarativeCopilotCapabilityName.EmbeddedKnowledge
             );
             if (embeddedKnowledgeCapabilities.length > 0) {
               const fileSet = new Set<string>();
               for (const capability of embeddedKnowledgeCapabilities) {
-                for (const file of capability.files as File[]) {
-                  if (file.file) {
-                    fileSet.add(file.file);
+                const embeddedCapability = capability as EmbeddedKnowledgeCapability;
+                if (embeddedCapability.files) {
+                  for (const file of embeddedCapability.files) {
+                    if (file.file) {
+                      fileSet.add(file.file);
+                    }
                   }
                 }
               }

@@ -12,7 +12,7 @@ import "mocha";
 import { RestoreFn } from "mocked-env";
 import path from "path";
 import sinon from "sinon";
-import { createContext } from "../../../src/common/globalVars";
+import { createContext, setTools } from "../../../src/common/globalVars";
 import { copilotGptManifestUtils } from "../../../src/component/driver/teamsApp/utils/CopilotGptManifestUtils";
 import { pluginManifestUtils } from "../../../src/component/driver/teamsApp/utils/PluginManifestUtils";
 import { DeclarativeAgentGenerator } from "../../../src/component/generator/declarativeAgent/generator";
@@ -25,9 +25,10 @@ import {
   CapabilityOptions,
   QuestionNames,
 } from "../../../src/question";
-import { MockLogProvider } from "../../core/utils";
+import { MockLogProvider, MockTools } from "../../core/utils";
 
 describe("copilotExtension", async () => {
+  setTools(new MockTools());
   let mockedEnvRestore: RestoreFn | undefined;
   const sandbox = sinon.createSandbox();
   afterEach(() => {
@@ -219,6 +220,7 @@ describe("copilotExtension", async () => {
 });
 
 describe("helper", async () => {
+  setTools(new MockTools());
   let mockedEnvRestore: RestoreFn | undefined;
   const sandbox = sinon.createSandbox();
   afterEach(() => {

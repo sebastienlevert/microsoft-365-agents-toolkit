@@ -166,6 +166,7 @@ export enum TelemetryEvent {
   MOSApi = "ttk-mos-api",
   ViewPluginManifestAfterAdded = "view-plugin-manifest-after-added",
   AddAuthAction = "add-auth-action",
+  ViewAgentManifestAfterAdded = "view-agent-manifest-after-added",
 }
 
 export enum ProjectTypeProps {

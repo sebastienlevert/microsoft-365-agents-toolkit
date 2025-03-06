@@ -34,6 +34,8 @@ export class FeatureFlagName {
   static readonly EmbeddedKnowledgeEnabled = "TEAMSFX_EMBEDDED_KNOWLEDGE";
   static readonly ShareEnabled = "TEAMSFX_SHARE";
   static readonly AddKnowledge = "TEAMSFX_ADD_KNOWLEDGE";
+  static readonly AddODSPKnowledge = "TEAMSFX_ADD_ODSP_KNOWLEDGE";
+  static readonly GCList = "TEAMSFX_GC_LIST";
 }
 
 export interface FeatureFlag {
@@ -110,6 +112,14 @@ export class FeatureFlags {
   };
   static readonly AddKnowledge = {
     name: FeatureFlagName.AddKnowledge,
+    defaultValue: "false",
+  };
+  static readonly AddODSPKnowledge = {
+    name: FeatureFlagName.AddODSPKnowledge,
+    defaultValue: "false",
+  };
+  static readonly GCList = {
+    name: FeatureFlagName.GCList,
     defaultValue: "false",
   };
 }

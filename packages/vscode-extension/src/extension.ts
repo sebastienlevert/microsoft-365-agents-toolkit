@@ -43,6 +43,7 @@ import {
   CryptoCodeLensProvider,
   ManifestTemplateCodeLensProvider,
   OfficeDevManifestCodeLensProvider,
+  OneDriveSharePointCodeLensProvider,
   PermissionsJsonFileCodeLensProvider,
   ProjectSettingsCodeLensProvider,
   TeamsAppYamlCodeLensProvider,
@@ -211,6 +212,7 @@ import { onSwitchAzureTenant, onSwitchM365Tenant } from "./handlers/accounts/swi
 import { kiotaRegenerate } from "./handlers/kiotaRegenerateHandler";
 import { releaseControlledFeatureSettings } from "./releaseBasedFeatureSettings";
 import { createDeclarativeAgentWithApiSpec } from "./handlers/createDeclarativeAgentWithApiSpecHandler";
+import { openOneDriveSharePointUrlHandler } from "./handlers/openOneDriveSharePointUrlHandler";
 
 export async function activate(context: vscode.ExtensionContext) {
   const value = IsChatParticipantEnabled && semver.gte(vscode.version, "1.90.0");
@@ -821,6 +823,12 @@ function registerTeamsFxCommands(context: vscode.ExtensionContext) {
     (...args) => Correlator.run(addAuthActionHandler, args)
   );
   context.subscriptions.push(addAuthActionCmd);
+
+  const openOneDriveSharePointUrlCmd = vscode.commands.registerCommand(
+    "fx-extension.openOneDriveSharePointUrl",
+    (...args) => Correlator.run(openOneDriveSharePointUrlHandler, args)
+  );
+  context.subscriptions.push(openOneDriveSharePointUrlCmd);
 }
 
 /**
@@ -1209,6 +1217,12 @@ function registerLanguageFeatures(context: vscode.ExtensionContext) {
     pattern: `**/${AppPackageFolderName}/apiSpecificationFile/*.{yml,yaml,json}`,
   };
 
+  const agentManifestSelector = {
+    language: "json",
+    scheme: "file",
+    pattern: `**/${AppPackageFolderName}/**/*.json`,
+  };
+
   const aadAppTemplateCodeLensProvider = new AadAppTemplateCodeLensProvider();
 
   const aadAppTemplateSelectorV3 = {
@@ -1327,6 +1341,14 @@ function registerLanguageFeatures(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(diagnosticCollection);
+
+  const oneDriveSharePointCodeLensProvider = new OneDriveSharePointCodeLensProvider();
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      agentManifestSelector,
+      oneDriveSharePointCodeLensProvider
+    )
+  );
 }
 
 function registerOfficeDevCodeLensProviders(context: vscode.ExtensionContext) {
