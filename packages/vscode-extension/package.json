@@ -580,6 +580,24 @@
     },
     "commands": [
       {
+        "command": "fx-extension.resolveAmbiguousPhrase",
+        "title": "Resolve Amibiguous Phrase"
+      },
+      {
+        "command": "fx-extension.openBizChat",
+        "title": "Open BizChat"
+      },
+      {
+        "command": "fx-extension.analyzeInstructions",
+        "title": "Analyze Instructions",
+        "category": "Teams"
+      },
+      {
+        "command": "fx-extension.generateInstructions",
+        "title": "Generate Instructions",
+        "category": "Teams"
+      },
+      {
         "command": "fx-extension.create",
         "title": "%teamstoolkit.commands.createProject.title%",
         "enablement": "!fx-extension.commandLocked",

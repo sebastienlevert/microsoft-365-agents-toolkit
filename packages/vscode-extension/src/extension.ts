@@ -210,6 +210,7 @@ import { onSwitchAzureTenant, onSwitchM365Tenant } from "./handlers/accounts/swi
 import { kiotaRegenerate } from "./handlers/kiotaRegenerateHandler";
 import { releaseControlledFeatureSettings } from "./releaseBasedFeatureSettings";
 import { createDeclarativeAgentWithApiSpec } from "./handlers/createDeclarativeAgentWithApiSpecHandler";
+import { activateFhl } from "./fhl";
 
 export async function activate(context: vscode.ExtensionContext) {
   const value = IsChatParticipantEnabled && semver.gte(vscode.version, "1.90.0");
@@ -373,6 +374,9 @@ function activateOfficeDevRegistration(context: vscode.ExtensionContext) {
  * They are usually used in welcome view and walkthrough.
  */
 function registerActivateCommands(context: vscode.ExtensionContext) {
+   // Activating FHL capabilities
+   activateFhl(context);
+
   // non-teamsfx project upgrade
   const checkUpgradeCmd = vscode.commands.registerCommand(
     "fx-extension.checkProjectUpgrade",
