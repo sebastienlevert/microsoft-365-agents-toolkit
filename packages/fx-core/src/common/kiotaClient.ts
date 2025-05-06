@@ -113,6 +113,14 @@ export async function kiotageneratePlugin(
       throw new Error("Get empty result from kiota");
     }
 
+    if (!result.isSuccess) {
+      const errorMessage = result.logs
+        .filter((log) => log.level >= ERROR_LOG_LEVEL)
+        .map((log) => log.message)
+        .join(";");
+      throw new Error(errorMessage);
+    }
+
     return result;
   } catch (error) {
     throw new KiotaGeneratePluginError(error.message);
