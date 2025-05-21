@@ -3,8 +3,6 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import path from "path";
-import fse from "fs-extra";
 import {
   AppManifestUtils,
   AppPackageFolderName,
@@ -12,8 +10,10 @@ import {
   ManifestTemplateFileName,
   TeamsManifestVDevPreview,
 } from "@microsoft/teamsfx-api";
-import { dotenvUtil } from "../../utils/envUtil";
+import fse from "fs-extra";
+import path from "path";
 import { getUuid } from "../../../common/stringUtils";
+import { dotenvUtil } from "../../utils/envUtil";
 
 const NOT_COPY_FILES = [
   "README.md",
@@ -105,7 +105,7 @@ export class MetaOSHelper {
 
     const manifest = (await AppManifestUtils.readTeamsManifest(
       manifestPath
-    )) as TeamsManifestVDevPreview;
+    )) as TeamsManifestVDevPreview.TeamsManifestVDevPreview;
 
     // use dotenvUtil rather than envUtil to avoid touch to the process.env
     const envVars = dotenvUtil.deserialize(await fse.readFile(envFilePath, { encoding: "utf8" }));
@@ -156,7 +156,7 @@ export class MetaOSHelper {
     const manifestPath = path.join(projectFolder, AppPackageFolderName, ManifestTemplateFileName);
     const manifest = (await AppManifestUtils.readTeamsManifest(
       manifestPath
-    )) as TeamsManifestVDevPreview;
+    )) as TeamsManifestVDevPreview.TeamsManifestVDevPreview;
 
     // Update manifest GUID
     manifest.id = DEFAULT_MANIFEST_ID;
@@ -247,7 +247,7 @@ export class MetaOSHelper {
     ActionFilename: string,
     appName: string
   ): Promise<void> {
-    const fileJson: DeclarativeAgentManifestV1D3 = {
+    const fileJson: DeclarativeAgentManifestV1D3.DeclarativeAgentManifestV1D3 = {
       $schema:
         "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.3/schema.json",
       version: "v1.3",
