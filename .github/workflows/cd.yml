@@ -24,8 +24,8 @@ on:
     - cron: "0 16 * * *"
 
 permissions:
-  actions: read
-  contents: read
+  actions: write
+  contents: write
 
 jobs:
   cd:
@@ -181,8 +181,8 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.vsrelease == 'true' }}
         id: vs-template-tag
         run: |
-          VS_VERSION=$(node -p "require('templates/package.json').vsversion")
-          echo "VSTAG=templates-vs@$VS_VERSION" >> $GITHUB_ENV
+          VS_VERSION=$(node -p "require('./templates/package.json').vsversion")
+          echo "VSTAG=templates-vs@$VS_VERSION" >> $GITHUB_OUTPUT
 
       - uses: mini-bomba/create-github-release@v1.1.3
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.vsrelease == 'true' }}
@@ -191,7 +191,8 @@ jobs:
           tag: ${{ steps.vs-template-tag.outputs.VSTAG }}
           name: ${{ steps.vs-template-tag.outputs.VSTAG }}
           body: "VS Templates release for ${{ steps.vs-template-tag.outputs.VSTAG }}"
-          target_commitish: ${{ github.ref }}
+          target_commit: ${{ github.sha }}
+          clear_attachments: true
           files: |
             ${{ github.workspace }}/templates/build/csharp.zip
 
