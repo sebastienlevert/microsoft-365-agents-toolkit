@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import { ok } from "@microsoft/teamsfx-api";
+import { err, ok, UserError } from "@microsoft/teamsfx-api";
 import axios, { AxiosResponse } from "axios";
 import * as chai from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -20,14 +20,19 @@ import {
   isTestToolEnabledProject,
   isSandboxedEnabled,
   getTypeSpecArgs,
+  runForTypeSpecProject,
 } from "../../src/common/tools";
 import { PackageService } from "../../src/component/m365/packageService";
 import { isVideoFilterProject } from "../../src/core/middleware/videoFilterAppBlocker";
 import { isUserCancelError } from "../../src/error/common";
-import { MockedM365Provider, MockTools } from "../core/utils";
+import { MockedM365Provider, MockLogProvider, MockTools } from "../core/utils";
 import { GraphClient } from "../../src/client/graphClient";
 import { setTools } from "../../src/common/globalVars";
 import { pathUtils } from "../../src";
+import { WrapDriverContext } from "../../src/component/driver/util/wrapUtil";
+import { NpmBuildDriver } from "../../src/component/driver/script/npmBuildDriver";
+import { TypeSpecCompileDriver } from "../../src/component/driver/typeSpec/compile";
+import * as ProjecTypeChecker from "../../src/common/projectTypeChecker";
 
 chai.use(chaiAsPromised);
 
@@ -520,6 +525,98 @@ projectId: 00000000-0000-0000-0000-000000000000`;
         outputDir: "./appPackage/.generated",
         typeSpecConfigPath: "./tspconfig.yaml",
       });
+    });
+  });
+
+  describe("runForTypeSpecProject", () => {
+    const sandbox = sinon.createSandbox();
+    let mockContext: WrapDriverContext;
+    beforeEach(() => {
+      mockContext = {
+        m365TokenProvider: new MockedM365Provider(),
+        logProvider: new MockLogProvider(),
+        addSummary: sandbox.stub(),
+        summaries: [],
+      } as unknown as WrapDriverContext;
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it("should call npm install and typeSpec compile for TypeSpec project", async () => {
+      const mockProjectPath = "mock-project-path";
+      const npmInstallStub = sandbox
+        .stub(NpmBuildDriver.prototype, "execute")
+        .resolves({ result: ok(new Map()), summaries: [] });
+      const typeSpecCompileStub = sandbox
+        .stub(TypeSpecCompileDriver.prototype, "execute")
+        .resolves({ result: ok(new Map()), summaries: [] });
+      sandbox.stub(ProjecTypeChecker, "isTypeSpecProject").returns(true);
+      sandbox.stub(pathUtils, "getYmlFilePath").returns("m365agents.yml");
+      sandbox
+        .stub(fs, "readFileSync")
+        .returns(
+          "provision:\n  - uses: typeSpec/compile\n    with:\n      path: ./custom.tsp\n      manifestPath: ./customManifest.json\n      outputDir: ./customOutputDir\n      typeSpecConfigPath: ./customTspconfig.yaml"
+        );
+      await runForTypeSpecProject(mockProjectPath, mockContext);
+      chai.expect(npmInstallStub.calledOnce).to.be.true;
+      chai.expect(typeSpecCompileStub.calledOnce).to.be.true;
+    });
+
+    it("should skip for not TypeSpec project", async () => {
+      const mockProjectPath = "mock-project-path";
+      const npmInstallStub = sandbox
+        .stub(NpmBuildDriver.prototype, "execute")
+        .resolves({ result: ok(new Map()), summaries: [] });
+      const typeSpecCompileStub = sandbox
+        .stub(TypeSpecCompileDriver.prototype, "execute")
+        .resolves({ result: ok(new Map()), summaries: [] });
+      sandbox.stub(ProjecTypeChecker, "isTypeSpecProject").returns(false);
+      await runForTypeSpecProject(mockProjectPath, mockContext);
+      chai.expect(npmInstallStub.notCalled).to.be.true;
+      chai.expect(typeSpecCompileStub.notCalled).to.be.true;
+    });
+
+    it("should throw error if npm install fails", async () => {
+      const mockProjectPath = "mock-project-path";
+      sandbox.stub(ProjecTypeChecker, "isTypeSpecProject").returns(true);
+      const typeSpecCompileStub = sandbox
+        .stub(TypeSpecCompileDriver.prototype, "execute")
+        .resolves({ result: ok(new Map()), summaries: [] });
+      const npmInstallStub = sandbox.stub(NpmBuildDriver.prototype, "execute").resolves({
+        result: err(new UserError("source", "NpmInstallError", "NPM install failed")),
+        summaries: [],
+      });
+      try {
+        await runForTypeSpecProject(mockProjectPath, mockContext);
+      } catch (error) {
+        chai.expect(error.error.name).to.equal("NpmInstallError");
+      }
+    });
+
+    it("should throw error if typespec compile fails", async () => {
+      const mockProjectPath = "mock-project-path";
+      sandbox.stub(ProjecTypeChecker, "isTypeSpecProject").returns(true);
+      sandbox.stub(pathUtils, "getYmlFilePath").returns("m365agents.yml");
+      sandbox
+        .stub(fs, "readFileSync")
+        .returns(
+          "provision:\n  - uses: typeSpec/compile\n    with:\n      path: ./custom.tsp\n      manifestPath: ./customManifest.json\n      outputDir: ./customOutputDir\n      typeSpecConfigPath: ./customTspconfig.yaml"
+        );
+      const typeSpecCompileStub = sandbox
+        .stub(TypeSpecCompileDriver.prototype, "execute")
+        .resolves({
+          result: err(new UserError("source", "TypeSpecCompileError", "TypeSpec compile failed")),
+          summaries: [],
+        });
+      const npmInstallStub = sandbox
+        .stub(NpmBuildDriver.prototype, "execute")
+        .resolves({ result: ok(new Map()), summaries: [] });
+      try {
+        await runForTypeSpecProject(mockProjectPath, mockContext);
+      } catch (error) {
+        chai.expect(error.error.name).to.equal("TypeSpecCompileError");
+      }
     });
   });
 });
