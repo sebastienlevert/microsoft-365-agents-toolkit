@@ -17,8 +17,6 @@ An Office Add-in can be a skill in a Copilot agent. Because Office Add-ins use t
 
 ## Test the agent
 
-## Test the add-in and agent
-
 1. Close all Office applications.
 1. Open Microsoft 365 Agent Toolkit.
 1. In the **Lifecycle** pane, select **Provision**. Among other things, provisioning does the following:
