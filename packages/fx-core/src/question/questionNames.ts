@@ -132,10 +132,8 @@ export enum QuestionNames {
   DeclarativeAgentManifestPath = "declarative-agent-manifest-path",
   SensitivityLabel = "sensitivity-label",
 
-  ShareOption = "option",
-  ShareOptionShareApp = "share-app",
-  ShareOptionShareToUser = "share-with-users",
-  ShareToUsers = "users",
+  ShareOperation = "share-operation",
+  ShareScope = "scope",
   RemoveUsers = "users",
 
   SelectPluginManifest = "select-plugin-manifest",
