@@ -26,13 +26,11 @@ describe("Debug Tests", function () {
       appName: string;
       prompt?: string;
       expected?: string;
-      consent?: boolean;
     }
   ) {
     await validatePrompt(page, options.appName, {
       prompt: options?.prompt || "Show repair records assigned to Karin Blair",
       expected: options?.expected || "Oil",
-      consent: options?.consent || false,
     });
   }
 
@@ -46,36 +44,34 @@ describe("Debug Tests", function () {
   });
 
   it(
-    "[auto][VSC][TS] Local debug for basic declarative agent with API plugin from scratch (OAuth)",
+    "[auto][VSC][JS] Local debug for basic declarative agent with API plugin from scratch",
     {
-      testPlanCaseId: 34628916,
+      testPlanCaseId: 34628844,
       author: "v-helzha@microsoft.com",
     },
     async function () {
       await daActionHappPathTestForLocalDebug("daaction", {
-        lang: Lang.TS,
-        apiAuth: "oauth",
+        lang: Lang.JS,
+        apiAuth: "none",
         successFlag: successFlag,
-        fileValidation: "src/functions/repairs.ts",
+        fileValidation: "src/functions/repairs.js",
         validationFn: validateFn,
-        consent: true,
       });
     }
   );
   it(
-    "[auto][VSC][TS] Remote debug for basic declarative agent with API plugin from scratch (OAuth)",
+    "[auto][VSC][JS] Remote debug for basic declarative agent with API plugin from scratch",
     {
-      testPlanCaseId: 28941947,
+      testPlanCaseId: 34628845,
       author: "v-helzha@microsoft.com",
     },
     async function () {
       await daActionHappPathTestForRemoteDebug("daAction", {
-        lang: Lang.TS,
-        authOption: "OAuth",
+        lang: Lang.JS,
+        authOption: "None",
         successFlag: successFlag,
-        fileValidation: "src/functions/repairs.ts",
+        fileValidation: "src/functions/repairs.js",
         validationFn: validateFn,
-        consent: true,
       });
     }
   );

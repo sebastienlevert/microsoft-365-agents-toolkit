@@ -46,34 +46,34 @@ describe("Debug Tests", function () {
   });
 
   it(
-    "[auto][VSC][TS] Local debug for basic declarative agent with API plugin from scratch (OAuth)",
+    "[auto][VSC][JS] Local debug for basic declarative agent with API plugin from scratch (OAuth)",
     {
-      testPlanCaseId: 34628916,
+      testPlanCaseId: 34628898,
       author: "v-helzha@microsoft.com",
     },
     async function () {
       await daActionHappPathTestForLocalDebug("daaction", {
-        lang: Lang.TS,
+        lang: Lang.JS,
         apiAuth: "oauth",
         successFlag: successFlag,
-        fileValidation: "src/functions/repairs.ts",
+        fileValidation: "src/functions/repairs.js",
         validationFn: validateFn,
         consent: true,
       });
     }
   );
   it(
-    "[auto][VSC][TS] Remote debug for basic declarative agent with API plugin from scratch (OAuth)",
+    "[auto][VSC][JS] Remote debug for basic declarative agent with API plugin from scratch (OAuth)",
     {
-      testPlanCaseId: 28941947,
+      testPlanCaseId: 34628911,
       author: "v-helzha@microsoft.com",
     },
     async function () {
       await daActionHappPathTestForRemoteDebug("daAction", {
-        lang: Lang.TS,
+        lang: Lang.JS,
         authOption: "OAuth",
         successFlag: successFlag,
-        fileValidation: "src/functions/repairs.ts",
+        fileValidation: "src/functions/repairs.js",
         validationFn: validateFn,
         consent: true,
       });
