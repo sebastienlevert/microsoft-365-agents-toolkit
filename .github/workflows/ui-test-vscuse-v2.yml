@@ -30,7 +30,7 @@ jobs:
         run: |
           if [ -z "${{ github.event.inputs.test_plan }}" ]; then
             # Get only top-level JSON files from plans directory (strip the .json extension)
-            plans=$(find packages/tests/vscuse/vscode-test-cases/ -maxdepth 1 -type f -name "*.json" -exec basename {} .json \; | jq -R -s -c 'split("\n")[:-1]')
+            plans=$(find packages/tests/vscuse/vscode-test-cases/plans/ -maxdepth 1 -type f -name "*.json" -exec basename {} .json \; | jq -R -s -c 'split("\n")[:-1]')
             echo "plans=$plans" >> $GITHUB_OUTPUT
             echo "Found test plans: $plans"
           else
@@ -70,6 +70,8 @@ jobs:
       # M365 account for testing
       M365_ACCOUNT_NAME: "test01@atktesting.onmicrosoft.com"
       M365_ACCOUNT_PASSWORD: ${{ secrets.TEST_M365_PASSWORD_NEW }}
+      AZURE_ACCOUNT_NAME: "test01@atktesting.onmicrosoft.com"
+      AZURE_ACCOUNT_PASSWORD: ${{ secrets.TEST_M365_PASSWORD_NEW }}
       M365_TENANT_ID: ${{ secrets.TEST_CLEAN_TENANT_ID_NEW }}
 
     steps:
@@ -149,7 +151,7 @@ jobs:
           cd packages/tests/vscuse/vscode-test-cases
           python -m venv .venv
           source .venv/bin/activate
-          vscuse execute --config-file ./config.yaml --groups-dir groups ${{ matrix.test_plan }}.json
+          vscuse execute --config-file ./config.yaml --groups-dir groups ./plans/${{ matrix.test_plan }}.json
 
       - name: Upload test artifacts
         if: always()
