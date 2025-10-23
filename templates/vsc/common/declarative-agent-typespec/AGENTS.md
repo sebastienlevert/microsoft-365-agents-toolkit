@@ -177,7 +177,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Enable (scoped by URL)**:
 
   ```typescript
-  op od_sp is AgentCapabilities.OneDriveAndSharePoint<TItemsByUrl = [
+  op od_sp is AgentCapabilities.OneDriveAndSharePoint<ItemsByUrl = [
     { url: "https://contoso.sharepoint.com/sites/ProductSupport" },
     { url: "https://contoso.sharepoint.com/sites/Engineering/Documents/Specs" }
   ]>
@@ -186,17 +186,17 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Enable (scoped by SharePoint ID)**:
 
   ```typescript
-  op od_sp is AgentCapabilities.OneDriveAndSharePoint<TItemsBySharePointIds = [
+  op od_sp is AgentCapabilities.OneDriveAndSharePoint<ItemsBySharePointIds = [
     { site_id: "contoso.sharepoint.com,guid,guid", web_id: "guid", list_id: "guid", unique_id: "guid" }
   ]>
   ```
 
 - **Purpose**: Enables the agent to search and access files in the user's OneDrive and SharePoint.
 - **Scoping**:
-  - **CRITICAL**: Scoping is done via `TItemsByUrl` or `TItemsBySharePointIds` properties in the capability definition, **NOT** in instructions.
-  - **NOT scoped**: Omit both `TItemsByUrl` and `TItemsBySharePointIds` arrays to allow access to all OneDrive and SharePoint content available to the user.
-  - **Scoped by URL**: Use `TItemsByUrl` with full paths to SharePoint sites, document libraries, folders, or files.
-  - **Scoped by SharePoint ID**: Use `TItemsBySharePointIds` for more precise control using SharePoint internal IDs.
+  - **CRITICAL**: Scoping is done via `ItemsByUrl` or `ItemsBySharePointIds` properties in the capability definition, **NOT** in instructions.
+  - **NOT scoped**: Omit both `ItemsByUrl` and `ItemsBySharePointIds` arrays to allow access to all OneDrive and SharePoint content available to the user.
+  - **Scoped by URL**: Use `ItemsByUrl` with full paths to SharePoint sites, document libraries, folders, or files.
+  - **Scoped by SharePoint ID**: Use `ItemsBySharePointIds` for more precise control using SharePoint internal IDs.
   - URLs should be full paths (use "Copy direct link" in SharePoint: right-click → Details → Path → copy icon).
 - **Best practices**:
   - Use when your agent needs to work with user documents, spreadsheets, or presentations.
@@ -210,7 +210,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example (scoped to Audits folder)**:
 
   ```typescript
-  op odsp is AgentCapabilities.OneDriveAndSharePoint<TItemsByUrl = [
+  op odsp is AgentCapabilities.OneDriveAndSharePoint<ItemsByUrl = [
     { url: "https://contoso.sharepoint.com/Shared%20Documents/Audits" }
   ]>
   ```
@@ -221,7 +221,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Enable (scoped)**:
 
   ```typescript
-  op teamsMessages is AgentCapabilities.TeamsMessages<TUrls = [
+  op teamsMessages is AgentCapabilities.TeamsMessages<TeamsMessagesByUrl = [
     { url: "https://teams.microsoft.com/l/team/19%3A..." },
     { url: "https://teams.microsoft.com/l/channel/19%3A..." }
   ]>
@@ -229,9 +229,9 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 
 - **Purpose**: Allows the agent to use Teams channels, teams, and meeting chats as knowledge sources.
 - **Scoping**:
-  - **CRITICAL**: Scoping is done via the `TUrls` property in the capability definition, **NOT** in instructions.
-  - **NOT scoped**: Omit `TUrls` array to allow access to all Teams channels, teams, meetings, 1:1 chats, and group chats available to the user.
-  - **Scoped**: Specify `TUrls` array with well-formed Teams URLs to restrict access to specific teams, channels, or chats.
+  - **CRITICAL**: Scoping is done via the `TeamsMessagesByUrl` property in the capability definition, **NOT** in instructions.
+  - **NOT scoped**: Omit `TeamsMessagesByUrl` array to allow access to all Teams channels, teams, meetings, 1:1 chats, and group chats available to the user.
+  - **Scoped**: Specify `TeamsMessagesByUrl` array with well-formed Teams URLs to restrict access to specific teams, channels, or chats.
   - URLs must be valid Teams links (copy from Teams: team/channel → "..." menu → "Get link to channel/team").
 - **Best practices**:
   - Use when your agent needs context from team conversations or project discussions.
@@ -245,7 +245,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example (scoped to Engineering team)**:
 
   ```typescript
-  op teamsMessages is AgentCapabilities.TeamsMessages<TUrls = [
+  op teamsMessages is AgentCapabilities.TeamsMessages<TeamsMessagesByUrl = [
     { url: "https://teams.microsoft.com/l/team/19%3Aengineering-team-id..." }
   ]>
   ```
@@ -256,7 +256,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Enable (scoped to specific folders)**:
 
   ```typescript
-  op email is AgentCapabilities.Email<TFolders = [
+  op email is AgentCapabilities.Email<Folders = [
     { folder_id: "Inbox" },
     { folder_id: "SentItems" }
   ]>
@@ -265,17 +265,17 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Enable (scoped to shared mailbox)**:
 
   ```typescript
-  op email is AgentCapabilities.Email<TSharedMailbox = "support@contoso.com", TFolders = [
+  op email is AgentCapabilities.Email<SharedMailbox = "support@contoso.com", Folders = [
     { folder_id: "Inbox" }
   ]>
   ```
 
 - **Purpose**: Allows the agent to use email from the user's mailbox or a shared mailbox as a knowledge source.
 - **Scoping**:
-  - **CRITICAL**: Scoping is done via `TFolders` and `TSharedMailbox` properties in the capability definition, **NOT** in instructions.
-  - **NOT scoped**: Omit `TFolders` array to allow access to the entire mailbox.
-  - **Scoped by folders**: Use `TFolders` array with folder IDs (e.g., "Inbox", "SentItems", "Drafts", custom folder names).
-  - **Scoped to shared mailbox**: Use `TSharedMailbox` property with the shared mailbox email address.
+  - **CRITICAL**: Scoping is done via `Folders` and `SharedMailbox` properties in the capability definition, **NOT** in instructions.
+  - **NOT scoped**: Omit `Folders` array to allow access to the entire mailbox.
+  - **Scoped by folders**: Use `Folders` array with folder IDs (e.g., "Inbox", "SentItems", "Drafts", custom folder names).
+  - **Scoped to shared mailbox**: Use `SharedMailbox` property with the shared mailbox email address.
   - Can combine shared mailbox with folder scoping for precise control.
 - **Best practices**:
   - Use when your agent needs to answer questions based on email correspondence.
@@ -290,7 +290,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example (scoped to support shared mailbox Inbox)**:
 
   ```typescript
-  op email is AgentCapabilities.Email<TSharedMailbox = "support@contoso.com", TFolders = [
+  op email is AgentCapabilities.Email<SharedMailbox = "support@contoso.com", Folders = [
     { folder_id: "Inbox" }
   ]>
   ```
@@ -338,13 +338,13 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
   op graphicArt is AgentCapabilities.GraphicArt;
   ```
 
-### GraphConnectors Capability
+### CopilotConnectors Capability
 
-- **Enable (unscoped)**: `op graphConnectors is AgentCapabilities.GraphConnectors`
+- **Enable (unscoped)**: `op graphConnectors is AgentCapabilities.CopilotConnectors`
 - **Enable (scoped)**:
 
   ```typescript
-  op copilotConnectors is AgentCapabilities.GraphConnectors<TConnections = [
+  op copilotConnectors is AgentCapabilities.CopilotConnectors<Connections = [
     { connectionId: "policieslocal" },
     { connectionId: "customersupport" }
   ]>
@@ -352,9 +352,9 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 
 - **Purpose**: Allows the agent to search content ingested via Microsoft Graph connectors.
 - **Scoping**:
-  - **CRITICAL**: Scoping is done via the `TConnections` property in the capability definition, **NOT** in instructions.
-  - **NOT scoped**: Omit `TConnections` array to allow access to all Graph connectors available to the user.
-  - **Scoped**: Specify `TConnections` array with connection IDs to restrict to specific connectors.
+  - **CRITICAL**: Scoping is done via the `Connections` property in the capability definition, **NOT** in instructions.
+  - **NOT scoped**: Omit `Connections` array to allow access to all Graph connectors available to the user.
+  - **Scoped**: Specify `Connections` array with connection IDs to restrict to specific connectors.
   - Connection IDs can be found using Microsoft Graph API or admin tools.
 - **Best practices**:
   - Use when your organization has external data sources connected via Graph connectors.
@@ -368,7 +368,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example (scoped to policies connector)**:
 
   ```typescript
-  op copilotConnectors is AgentCapabilities.GraphConnectors<TConnections = [
+  op copilotConnectors is AgentCapabilities.Connections<Connections = [
     { connectionId: "policieslocal" }
   ]>
   ```
