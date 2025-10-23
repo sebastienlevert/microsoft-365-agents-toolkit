@@ -6,7 +6,7 @@
     "generate:env": "node scripts/generate-env.js"
   },
   "devDependencies": {
-    "@microsoft/typespec-m365-copilot": "1.0.0-rc.4",
+    "@microsoft/typespec-m365-copilot": "1.0.0-rc.5",
     "@typespec/compiler": "^1.0.0",
     "@typespec/http": "^1.0.0",
     "@typespec/openapi": "^1.0.0",
