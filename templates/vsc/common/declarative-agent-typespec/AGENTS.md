@@ -55,6 +55,140 @@ applyTo: '**/*.tsp'
 - Expose actions as operations: `op getPolicies is PoliciesAPI.getPolicies`.
 - Trust the TypeSpec type system and define strong contracts for all API operations.
 
+## Agent Decorators
+
+### @agent Decorator
+
+- **Purpose**: Indicates that a namespace represents an agent and provides its basic metadata.
+- **Parameters**:
+  - `name` (string, localizable, required): The name of the declarative agent. Must contain at least one non-whitespace character and must be 100 characters or less.
+  - `description` (string, localizable, required): The description of the declarative agent. Must contain at least one non-whitespace character and must be 1,000 characters or less.
+  - `id` (string, optional): The unique identifier of the agent.
+- **Usage**:
+
+  ```typespec
+  @agent("Policy Assistant", "An agent that helps users find and understand company policies")
+  namespace PolicyAgent {
+    // Agent implementation
+  }
+  ```
+
+- **Best practices**:
+  - Use clear, descriptive names that convey the agent's purpose.
+  - Write concise but informative descriptions that help users understand when to use the agent.
+  - Only specify `id` when you need to maintain a specific agent identifier across deployments.
+
+### @instructions Decorator
+
+- **Purpose**: Defines the instructions that guide the agent's behavior.
+- **Parameters**:
+  - `instructions` (string, not localizable, required): The detailed instructions or guidelines on how the declarative agent should behave, its functions, and any behaviors to avoid. Must contain at least one non-whitespace character and must be 8,000 characters or less.
+- **Usage**:
+
+  ```typespec
+  @instructions(Prompts.INSTRUCTIONS)
+  namespace PolicyAgent {
+    // Agent implementation
+  }
+  ```
+
+- **Best practices**:
+  - Store instructions in a dedicated `Prompts` namespace in `instructions.tsp`.
+  - Use clear, directive language with keywords like **ALWAYS**, **NEVER**, **MUST**.
+  - Provide concrete examples of expected behavior.
+  - Keep instructions focused and relevant to the agent's purpose.
+
+### @conversationStarter Decorator
+
+- **Purpose**: Defines conversation starters that guide users on how to interact with the agent.
+- **Parameters**:
+  - `conversationStarter` (ConversationStarter object, required): An object with `title` (optional) and `text` (required) properties.
+- **ConversationStarter Model**:
+  - `title` (string, localizable, optional): A unique title for the conversation starter. Must contain at least one non-whitespace character.
+  - `text` (string, localizable, required): A suggestion that the user can use to obtain the desired result. Must contain at least one non-whitespace character.
+- **Usage**:
+
+  ```typespec
+  @conversationStarter(#{ title: "Find Policies", text: "Show me all compliance policies" })
+  @conversationStarter(#{ text: "What's the vacation policy?" })
+  namespace PolicyAgent {
+    // Agent implementation
+  }
+  ```
+
+- **Best practices**:
+  - Limit the number of conversation starters to 12.
+  - Use conversation starters to showcase the agent's key capabilities.
+  - Make suggestions specific and actionable.
+  - Cover diverse use cases to help users understand the agent's range.
+
+### @disclaimer Decorator
+
+- **Purpose**: Displays a disclaimer message to users at the start of a conversation to satisfy legal or compliance requirements.
+- **Parameters**:
+  - `disclaimer` (Disclaimer object, required): An object with a `text` property.
+- **Disclaimer Model**:
+  - `text` (string, required): The disclaimer message. Must contain at least 1 non-whitespace character. Characters beyond 500 may be ignored.
+- **Usage**:
+
+  ```typespec
+  @disclaimer(#{ text: "This agent provides general information only. Consult HR for official policy interpretations." })
+  namespace PolicyAgent {
+    // Agent implementation
+  }
+  ```
+
+- **Best practices**:
+  - Use disclaimers when the agent handles sensitive information or provides advice.
+  - Keep disclaimers concise and under 500 characters.
+  - Ensure disclaimers comply with your organization's legal and compliance requirements.
+  - Review disclaimers with legal/compliance teams before deployment.
+
+### @behaviorOverrides Decorator
+
+- **Purpose**: Defines settings that modify the behavior of the agent orchestration.
+- **Parameters**:
+  - `behaviorOverrides` (BehaviorOverrides object, required): An object with optional properties to control agent behavior.
+- **BehaviorOverrides Model**:
+  - `discourageModelKnowledge` (boolean, optional): Indicates whether the declarative agent should be discouraged from using model knowledge when generating responses.
+  - `disableSuggestions` (boolean, optional): Indicates whether the suggestions feature is disabled.
+- **Usage**:
+
+  ```typespec
+  @behaviorOverrides(#{ discourageModelKnowledge: true, disableSuggestions: false })
+  namespace PolicyAgent {
+    // Agent implementation
+  }
+  ```
+
+- **Best practices**:
+  - Use `discourageModelKnowledge: true` when you want the agent to rely primarily on provided knowledge sources rather than pre-trained knowledge.
+  - Use `disableSuggestions: false` (default) to keep the suggestions feature enabled for better user experience.
+  - Test behavior overrides thoroughly to ensure they produce the desired agent behavior.
+  - Document the reasons for using behavior overrides in your agent documentation.
+
+### @customExtension Decorator
+
+- **Purpose**: Allows adding custom extension properties to the agent for future extensibility.
+- **Parameters**:
+  - `key` (string, required): The key name for the custom extension property.
+  - `value` (unknown, required): The value for the custom extension property (can be any type).
+- **Usage**:
+
+  ```typespec
+  @customExtension("customProperty", "customValue")
+  @customExtension("featureFlag", true)
+  namespace PolicyAgent {
+    // Agent implementation
+  }
+  ```
+
+- **Best practices**:
+  - Use custom extensions sparingly and only when needed for specific scenarios.
+  - Document the purpose and expected values of custom extensions clearly.
+  - Coordinate with Microsoft documentation or support to understand supported custom extensions.
+  - Be prepared for custom extensions to be ignored if not recognized by the platform.
+
 ## Action Definitions
 
 - Define actions in dedicated namespaces decorated with `@service` and `@server(url)`.
@@ -166,7 +300,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example (scoped to Microsoft Learn)**:
 
   ```typescript
-  op webSearch is AgentCapabilities.WebSearch<TSites = [
+  op webSearch is AgentCapabilities.WebSearch<Sites = [
     { url: "https://learn.microsoft.com" }
   ]>
   ```
@@ -343,7 +477,7 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Enable (unscoped)**: `op graphConnectors is AgentCapabilities.CopilotConnectors`
 - **Enable (scoped)**:
 
-  ```typescript
+  ```typespec
   op copilotConnectors is AgentCapabilities.CopilotConnectors<Connections = [
     { connectionId: "policieslocal" },
     { connectionId: "customersupport" }
@@ -352,9 +486,9 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 
 - **Purpose**: Allows the agent to search content ingested via Microsoft Graph connectors.
 - **Scoping**:
-  - **CRITICAL**: Scoping is done via the `Connections` property in the capability definition, **NOT** in instructions.
-  - **NOT scoped**: Omit `Connections` array to allow access to all Graph connectors available to the user.
-  - **Scoped**: Specify `Connections` array with connection IDs to restrict to specific connectors.
+  - **CRITICAL**: Scoping is done via the `Connections` generic parameter in the capability definition, **NOT** in instructions.
+  - **NOT scoped**: Omit `Connections` parameter to allow access to all Graph connectors available to the user.
+  - **Scoped**: Specify `Connections` parameter with connection IDs to restrict to specific connectors.
   - Connection IDs can be found using Microsoft Graph API or admin tools.
 - **Best practices**:
   - Use when your organization has external data sources connected via Graph connectors.
@@ -367,8 +501,8 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example instruction**: "Search Graph connectors for customer support tickets when the user asks about customer issues. Provide ticket numbers and summaries."
 - **Example (scoped to policies connector)**:
 
-  ```typescript
-  op copilotConnectors is AgentCapabilities.Connections<Connections = [
+  ```typespec
+  op copilotConnectors is AgentCapabilities.CopilotConnectors<Connections = [
     { connectionId: "policieslocal" }
   ]>
   ```
@@ -392,8 +526,115 @@ Microsoft 365 Copilot agents support multiple capabilities that extend the agent
 - **Example instruction**: "When displaying usage trends, use CodeInterpreter to create a line chart with dates on x-axis and usage count on y-axis. Always include a descriptive title."
 - **Example**:
 
-  ```typescript
+  ```typespec
   op codeInterpreter is AgentCapabilities.CodeInterpreter;
+  ```
+
+### Meetings Capability
+
+- **Enable**: `op meetings is AgentCapabilities.Meetings`
+- **Purpose**: Allows the agent to search meeting content.
+- **Scoping**:
+  - **NOTE**: This capability does not support scoping parameters.
+  - The agent can search through meeting content that the user has access to.
+- **Best practices**:
+  - Use when your agent needs to access information from meeting transcripts, recordings, or notes.
+  - Respect user permissions — the agent can only access meetings the user can see.
+  - Guide the agent to cite meeting titles, dates, and participants when referencing meeting content.
+  - Consider combining with People capability to provide context about meeting participants.
+  - Be aware of privacy and confidentiality when using meeting content as knowledge.
+- **Example instruction**: "When the user asks about decisions made in meetings, search meeting content for relevant discussions. Include the meeting date and key participants."
+- **Example**:
+
+  ```typespec
+  op meetings is AgentCapabilities.Meetings;
+  ```
+
+### ScenarioModels Capability
+
+- **Enable**: 
+
+  ```typespec
+  op scenarioModels is AgentCapabilities.ScenarioModels<Models = [
+    { id: "model-id-1" },
+    { id: "model-id-2" }
+  ]>
+  ```
+
+- **Purpose**: Allows the agent to use task-specific models for specialized scenarios.
+- **Scoping**:
+  - **CRITICAL**: The `Models` parameter is **required** and must contain at least one model ID.
+  - Specify `Models` parameter with model IDs to enable specific task-specific models.
+  - Model IDs are provided by Microsoft and identify specialized AI models for specific tasks.
+- **Best practices**:
+  - Use when your agent requires specialized models for domain-specific tasks.
+  - Ensure you have the appropriate licenses and permissions for the models you specify.
+  - Document which models are being used and their purpose in your agent documentation.
+  - Test thoroughly with the specific models to ensure expected behavior.
+  - Monitor model availability and updates from Microsoft.
+- **Example instruction**: "Use specialized models for domain-specific analysis when processing user queries."
+- **Example**:
+
+  ```typespec
+  op scenarioModels is AgentCapabilities.ScenarioModels<Models = [
+    { id: "specialized-model-id" }
+  ]>
+  ```
+
+### Dataverse Capability
+
+- **Enable (unscoped)**: `op dataverse is AgentCapabilities.Dataverse`
+- **Enable (scoped)**:
+
+  ```typespec
+  op dataverse is AgentCapabilities.Dataverse<KnowledgeSources = [
+    { hostName: "contoso.crm.dynamics.com" },
+    { hostName: "contoso-dev.crm.dynamics.com", skill: "custom-skill-id" }
+  ]>
+  ```
+
+- **Enable (scoped with tables)**:
+
+  ```typespec
+  op dataverse is AgentCapabilities.Dataverse<KnowledgeSources = [
+    { 
+      hostName: "contoso.crm.dynamics.com",
+      tables: [
+        { tableName: "account" },
+        { tableName: "contact" }
+      ]
+    }
+  ]>
+  ```
+
+- **Purpose**: Allows the agent to search for information in Microsoft Dataverse.
+- **Scoping**:
+  - **CRITICAL**: Scoping is done via the `KnowledgeSources` generic parameter in the capability definition, **NOT** in instructions.
+  - **NOT scoped**: Omit `KnowledgeSources` parameter to allow access to all accessible Dataverse environments.
+  - **Scoped by environment**: Specify `KnowledgeSources` parameter with environment hostnames.
+  - **Scoped by tables**: Include `tables` array within a knowledge source to limit to specific Dataverse tables.
+  - **Scoped by skill**: Include `skill` property to use a specific skill identifier.
+- **Best practices**:
+  - Use when your agent needs to access business data stored in Dataverse.
+  - Scope to specific environments and tables when you want to limit access to relevant data.
+  - Respect user permissions — the agent can only access Dataverse data the user has permission to view.
+  - Document the Dataverse schema and table relationships in your agent documentation.
+  - Guide the agent on how to interpret Dataverse entity relationships and field meanings.
+  - Consider combining with other capabilities for richer experiences (e.g., Dataverse + CodeInterpreter for data visualization).
+  - Test with real Dataverse data to ensure proper query formation and result interpretation.
+- **Example instruction**: "When the user asks about customer information, search Dataverse for account and contact records. Provide relevant details while respecting data privacy."
+- **Example (scoped to specific environment and tables)**:
+
+  ```typespec
+  op dataverse is AgentCapabilities.Dataverse<KnowledgeSources = [
+    { 
+      hostName: "contoso.crm.dynamics.com",
+      tables: [
+        { tableName: "account" },
+        { tableName: "opportunity" }
+      ]
+    }
+  ]>
   ```
 
 ### Combining Capabilities
