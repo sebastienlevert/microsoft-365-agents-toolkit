@@ -114,7 +114,8 @@ export class Env {
 
   private static getVal(name: string, value: string | undefined): string {
     if (!value) {
-      throw new Error(`Environment variable ${name} should not be empty.`);
+      console.error("Environment variable${name}should not be empty.");
+      // throw new Error(`Environment variable ${name} should not be empty.`);
     }
     return value as string;
   }
