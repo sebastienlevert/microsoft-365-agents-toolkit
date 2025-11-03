@@ -122,6 +122,19 @@ export class TeamsAgentCapabilityOptions {
     };
   }
 
+  static collaboratorAgent(): OptionItem {
+    return {
+      id: "teams-collaborator-agent",
+      label: getLocalizedString(
+        "core.createProjectQuestion.capability.teamsAgent.collaborator.label"
+      ),
+      detail: getLocalizedString(
+        "core.createProjectQuestion.capability.teamsAgent.collaborator.detail"
+      ),
+      data: TemplateNames.TeamsCollaboratorAgent,
+    };
+  }
+
   static others(): OptionItem {
     const description = featureFlagManager.getBooleanValue(FeatureFlags.CEAEnabled)
       ? getLocalizedString("core.createProjectQuestion.capability.customEngineAgent.description")
@@ -527,7 +540,6 @@ export class DACapabilityOptions {
       id: "type-spec",
       label: getLocalizedString("core.createProjectQuestion.apiPlugin.typeSpec.label"),
       detail: getLocalizedString("core.createProjectQuestion.apiPlugin.typeSpec.detail"),
-      description: getLocalizedString("core.createProjectQuestion.option.description.preview"),
       data: TemplateNames.DeclarativeAgentWithTypeSpec,
     };
   }
@@ -604,6 +616,16 @@ export class ActionStartOptions {
       label: getLocalizedString("core.createProjectQuestion.apiPlugin.importPlugin.label"),
       detail: getLocalizedString("core.createProjectQuestion.apiPlugin.importPlugin.detail"),
       data: TemplateNames.DeclarativeAgentWithExistingAction,
+    };
+  }
+
+  static mcp(): OptionItem {
+    return {
+      id: "mcp",
+      label: getLocalizedString("core.createProjectQuestion.mcpForDa.label"),
+      detail: getLocalizedString("core.createProjectQuestion.mcpForDa.detail"),
+      description: getLocalizedString("core.createProjectQuestion.option.description.preview"),
+      data: TemplateNames.DeclarativeAgentWithActionFromMCP,
     };
   }
 }

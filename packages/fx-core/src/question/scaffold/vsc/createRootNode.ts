@@ -53,6 +53,17 @@ export function getLanguageOptions(inputs: Inputs): OptionItem[] {
         label: "None",
       }
   );
+  if (inputs[QuestionNames.ProjectType] === ProjectTypeOptions.teamsAgentsAndApps().id) {
+    const pythonOptionIndex = languageOptions.findIndex(
+      (option) => option.id === ProgrammingLanguage.PY
+    );
+    if (pythonOptionIndex !== -1) {
+      languageOptions[pythonOptionIndex] = {
+        ...languageOptions[pythonOptionIndex],
+        description: getLocalizedString("core.createProjectQuestion.option.description.preview"),
+      };
+    }
+  }
   return languageOptions;
 }
 
@@ -189,6 +200,7 @@ export function getProjectTypeByCapability(capability: string): string {
     [
       TeamsAgentCapabilityOptions.basicChatbot().id,
       TeamsAgentCapabilityOptions.customCopilotRag().id,
+      TeamsAgentCapabilityOptions.collaboratorAgent().id,
       BotCapabilityOptions.basicBot().id,
       TabCapabilityOptions.nonSsoTab().id,
       MeCapabilityOptions.basicMe().id,
@@ -231,6 +243,7 @@ export function getTeamsAppTypeByCapability(capability: string): string {
     [
       TeamsAgentCapabilityOptions.basicChatbot().id,
       TeamsAgentCapabilityOptions.customCopilotRag().id,
+      TeamsAgentCapabilityOptions.collaboratorAgent().id,
     ].includes(capability)
   ) {
     return capability;
