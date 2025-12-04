@@ -81,17 +81,18 @@ export class TypeSpecCompileDriver implements StepDriver {
           throw tspRes.error;
         }
 
-        // 2. Call Kiota to generate plugin manifest
-        const openapiSpecs = fs.readdirSync(openApiSpecsFolderPath);
-        if (openapiSpecs.length === 0) {
-          throw new NoSpecError(actionName);
+        // 2. Call Kiota to generate plugin manifest (only if OpenAPI specs exist)
+        // MCP and local plugins don't require Kiota generation
+        let openapiSpecs: string[] = [];
+        if (fs.existsSync(openApiSpecsFolderPath)) {
+          openapiSpecs = fs.readdirSync(openApiSpecsFolderPath);
         }
 
         const daManifest = (await fs.readJSON(
           daManifestFilePath
         )) as DeclarativeCopilotManifestSchema;
         const actions = daManifest.actions;
-        if (actions && actions.length > 0) {
+        if (actions && actions.length > 0 && openapiSpecs.length > 0) {
           if (openapiSpecs.length === 1) {
             // only one openapi spec, the spac name should = openapi.yaml
             const spec = openapiSpecs[0];
