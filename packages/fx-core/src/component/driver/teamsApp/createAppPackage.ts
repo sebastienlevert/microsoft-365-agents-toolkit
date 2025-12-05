@@ -581,7 +581,8 @@ export class CreateAppPackageDriver implements StepDriver {
       zip,
       pluginRelativePath,
       appDirectory,
-      context
+      context,
+      defaultAppDirectry
     );
     if (addFilesRes.isErr()) {
       return err(addFilesRes.error);
@@ -591,18 +592,20 @@ export class CreateAppPackageDriver implements StepDriver {
   }
 
   /**
-   * Add plugin related files (OpenAPI spec) to zip.
+   * Add plugin related files (OpenAPI spec, MCP tool descriptions) to zip.
    * @param zip zip.
    * @param pluginFile plugin file path relative to app package folder.
    * @param appDirectory app package folder.
    * @param context context.
+   * @param defaultAppDirectry optional. Default app directory (for TypeSpec projects, points to appPackage folder).
    * @returns results whether add files related to plugin is successful.
    */
   private async addPluginRelatedFiles(
     zip: AdmZip,
     pluginFile: string,
     appDirectory: string,
-    context: WrapDriverContext
+    context: WrapDriverContext,
+    defaultAppDirectry?: string
   ): Promise<Result<undefined, FxError>> {
     const pluginFilePath = path.join(appDirectory, pluginFile);
     const pluginContent = (await fs.readJSON(pluginFilePath)) as PluginManifestSchema;
@@ -629,6 +632,47 @@ export class CreateAppPackageDriver implements StepDriver {
           );
           if (addFileWithVariableRes.isErr()) {
             return err(addFileWithVariableRes.error);
+          }
+        } else if (runtime.type === "RemoteMCPServer" && runtime.spec) {
+          // Handle MCP tool description files (both x-mcp_tool_description and mcp_tool_description)
+          const mcpToolDescription =
+            (runtime.spec as any)["x-mcp_tool_description"] ||
+            (runtime.spec as any)["mcp_tool_description"];
+
+          if (mcpToolDescription?.file) {
+            // For TypeSpec projects, MCP tool files are always in the appPackage folder, not .generated
+            let mcpToolFile = path.resolve(
+              defaultAppDirectry ?? path.dirname(pluginFilePath),
+              mcpToolDescription.file
+            );
+            let checkExistenceRes = await this.validateReferencedFile(
+              mcpToolFile,
+              defaultAppDirectry ?? appDirectory
+            );
+
+            // If not found and we have a defaultAppDirectry, try the generated folder as fallback
+            if (checkExistenceRes.isErr() && defaultAppDirectry) {
+              mcpToolFile = path.resolve(path.dirname(pluginFilePath), mcpToolDescription.file);
+              checkExistenceRes = await this.validateReferencedFile(mcpToolFile, appDirectory);
+            }
+
+            if (checkExistenceRes.isErr()) {
+              return err(checkExistenceRes.error);
+            }
+
+            const entryName = path.relative(defaultAppDirectry ?? appDirectory, mcpToolFile);
+            const useForwardSlash = pluginFile.concat(mcpToolDescription.file).includes("/");
+
+            const addFileWithVariableRes = await this.addFileWithVariable(
+              zip,
+              normalizePath(entryName, useForwardSlash),
+              mcpToolFile,
+              ManifestType.PluginManifest,
+              context
+            );
+            if (addFileWithVariableRes.isErr()) {
+              return err(addFileWithVariableRes.error);
+            }
           }
         }
       }
