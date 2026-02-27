@@ -18,6 +18,7 @@ import {
   Result,
   SharePointIDs,
   Site,
+  validateCopilotManifestAsStrings,
   WebSearchCapability,
 } from "@microsoft/teamsfx-api";
 import fs from "fs-extra";
@@ -187,10 +188,22 @@ export class CopilotGptManifestUtils {
     const manifest = manifestRes.value;
     try {
       const manifestValidationRes = await ManifestUtil.validateManifest(manifestRes.value);
+
+      // Run deep validation (Rego rules + TypeScript semantic validators)
+      let deepValidationRes: string[] = [];
+      try {
+        deepValidationRes = await validateCopilotManifestAsStrings(
+          manifestRes.value as unknown as Record<string, unknown>,
+          { filename: manifestPath }
+        );
+      } catch {
+        // Deep validation is best-effort; schema validation still runs
+      }
+
       const res: DeclarativeCopilotManifestValidationResult = {
         id: declaraitveCopilot.id,
         filePath: manifestPath,
-        validationResult: manifestValidationRes,
+        validationResult: [...manifestValidationRes, ...deepValidationRes],
         actionValidationResult: [],
       };
 

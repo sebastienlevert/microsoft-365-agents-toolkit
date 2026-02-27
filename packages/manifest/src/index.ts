@@ -26,6 +26,7 @@ export * from "./wrappers";
 
 // Copilot validation (deep validation for declarative agents and API plugins)
 export * as CopilotValidation from "./copilot-validation";
+export { validateCopilotManifest, validateCopilotManifestAsStrings } from "./copilotValidation";
 
 export type TeamsAppManifestJSONSchema = JSONSchemaType<TeamsAppManifest>;
 export type DevPreviewManifestJSONSchema = JSONSchemaType<DevPreviewSchema>;
