@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  '@microsoft/app-manifest':
+    specifier: workspace:*
+    version: link:../manifest
   '@modelcontextprotocol/sdk':
     specifier: ^1.12.1
     version: 1.12.1
