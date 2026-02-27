@@ -9,7 +9,7 @@
 import * as vscode from "vscode";
 import { validateCopilotManifest } from "@microsoft/teamsfx-api";
 
-const DIAGNOSTIC_SOURCE = "M365 Copilot";
+const DIAGNOSTIC_SOURCE = "Microsoft 365 Agents Toolkit";
 
 // Schema URL prefixes used to identify declarative agent / API plugin files
 const DA_SCHEMA_PREFIX = "developer.microsoft.com/json-schemas/copilot/declarative-agent";
@@ -91,7 +91,7 @@ async function runValidation(
     const diagnostics: vscode.Diagnostic[] = [];
 
     for (const error of result.errors) {
-      const range = toRange(error);
+      const range = toRange(doc, error);
       const diag = new vscode.Diagnostic(range, error.message, vscode.DiagnosticSeverity.Error);
       diag.source = DIAGNOSTIC_SOURCE;
       diag.code = error.code;
@@ -99,7 +99,7 @@ async function runValidation(
     }
 
     for (const warning of result.warnings) {
-      const range = toRange(warning);
+      const range = toRange(doc, warning);
       const diag = new vscode.Diagnostic(range, warning.message, vscode.DiagnosticSeverity.Warning);
       diag.source = DIAGNOSTIC_SOURCE;
       diag.code = warning.code;
@@ -112,15 +112,52 @@ async function runValidation(
   }
 }
 
-function toRange(error: {
-  line: number;
-  column: number;
-  endLine?: number;
-  endColumn?: number;
-}): vscode.Range {
+/**
+ * Build a VS Code Range that covers the full JSON token (string value,
+ * number, keyword, or property key) at the reported error position.
+ *
+ * Falls back to underlining to end-of-line when the token boundary
+ * cannot be determined.
+ */
+function toRange(doc: vscode.TextDocument, error: { line: number; column: number }): vscode.Range {
   const startLine = Math.max(0, (error.line || 1) - 1);
   const startCol = Math.max(0, (error.column || 1) - 1);
-  const endLine = error.endLine ? Math.max(0, error.endLine - 1) : startLine;
-  const endCol = error.endColumn ? Math.max(0, error.endColumn - 1) : startCol + 1;
-  return new vscode.Range(startLine, startCol, endLine, endCol);
+  const lineText = doc.lineAt(startLine).text;
+
+  // Try to detect the token at startCol
+  const rest = lineText.substring(startCol);
+
+  let length = 0;
+  if (rest.startsWith('"')) {
+    // Quoted string — find the closing quote (skip escaped quotes)
+    let i = 1;
+    while (i < rest.length) {
+      if (rest[i] === "\\" && i + 1 < rest.length) {
+        i += 2;
+        continue;
+      }
+      if (rest[i] === '"') {
+        length = i + 1;
+        break;
+      }
+      i++;
+    }
+    if (length === 0) {
+      length = rest.length; // unterminated string — underline to EOL
+    }
+  } else {
+    // Non-quoted token (number, boolean, null, or bare word)
+    const match = rest.match(/^[^\s,\]}"]+/);
+    length = match ? match[0].length : 0;
+  }
+
+  // Fallback: underline to end of trimmed line content
+  if (length === 0) {
+    length = lineText.trimEnd().length - startCol;
+  }
+  if (length <= 0) {
+    length = 1;
+  }
+
+  return new vscode.Range(startLine, startCol, startLine, startCol + length);
 }

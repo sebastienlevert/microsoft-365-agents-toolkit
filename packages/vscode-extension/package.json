@@ -1859,6 +1859,22 @@
         "when": "fx-extension.isChatParticipantUIEntriesEnabled"
       }
     ],
+    "jsonValidation": [
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.6/schema.json",
+        "fileMatch": [
+          "declarativeAgent.json",
+          "declarativeCopilot.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json",
+        "fileMatch": [
+          "ai-plugin.json",
+          "ai-plugin.*.json"
+        ]
+      }
+    ],
     "configuration": {
       "title": "Microsoft 365 Agents Toolkit",
       "properties": {
