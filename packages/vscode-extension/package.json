@@ -1859,20 +1859,6 @@
         "when": "fx-extension.isChatParticipantUIEntriesEnabled"
       }
     ],
-    "jsonValidation": [
-      {
-        "url": "./out/schemas/declarative-agent-v1.6.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "./out/schemas/api-plugin-v2.3.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      }
-    ],
     "configuration": {
       "title": "Microsoft 365 Agents Toolkit",
       "properties": {
