@@ -12,7 +12,10 @@
     "ajv-draft-04": "^1.0.0",
     "ajv-formats": "^3.0.1",
     "node-fetch": "2.7.0",
-    "strip-bom": "^5.0.0"
+    "strip-bom": "^5.0.0",
+    "@open-policy-agent/opa-wasm": "^1.9.0",
+    "jsonc-parser": "^3.2.0",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
@@ -46,7 +49,7 @@
     "unzipper": "^0.12.3"
   },
   "scripts": {
-    "build": "tsc -p ./ --incremental",
+    "build": "tsc -p ./ --incremental && npm run copy-copilot-assets",
     "prebuild": "npm run copy-json-schema",
     "copy-json-schema": "copyfiles -u 1 src/json-schema/**/* build/",
     "test": "npm run test:unit",
@@ -54,7 +57,8 @@
     "lint": "eslint \"**/*.ts\"",
     "precommit": "lint-staged",
     "lint:staged": "lint-staged",
-    "convert": "node convert.js"
+    "convert": "node convert.js",
+    "copy-copilot-assets": "copyfiles -u 1 src/copilot-validation/rules/bundle.wasm src/copilot-validation/schemas/*.json build/"
   },
   "files": [
     "build/**/*"
