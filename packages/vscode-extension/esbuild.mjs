@@ -150,15 +150,6 @@ async function main() {
         src: "../manifest/src/copilot-validation/rules/bundle.wasm",
         dest: path.join(outputDirectory, "src", "rules", "bundle.wasm"),
       }),
-      // Copy copilot-validation JSON schemas for local $schema resolution
-      copyStaticFiles({
-        src: "../manifest/src/copilot-validation/schemas/declarative-agent-v1.6.json",
-        dest: path.join(outputDirectory, "schemas", "declarative-agent-v1.6.json"),
-      }),
-      copyStaticFiles({
-        src: "../manifest/src/copilot-validation/schemas/api-plugin-v2.3.json",
-        dest: path.join(outputDirectory, "schemas", "api-plugin-v2.3.json"),
-      }),
       /* add to the end of plugins array */
       esbuildProblemMatcherPlugin,
     ],
