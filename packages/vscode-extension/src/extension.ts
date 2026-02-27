@@ -40,6 +40,7 @@ import azureAccountManager from "./commonlib/azureLogin";
 import VsCodeLogInstance from "./commonlib/log";
 import M365TokenInstance from "./commonlib/m365Login";
 import { configMgr } from "./config";
+import { registerCopilotDiagnostics } from "./copilotDiagnostics";
 import { CommandKey as CommandKeys } from "./constants";
 import { openWelcomePageAfterExtensionInstallation } from "./controls/openWelcomePage";
 import { TeamsFxTaskType } from "./debug/common/debugConstants";
@@ -1316,6 +1317,9 @@ function registerLanguageFeatures(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(diagnosticCollection);
+
+  // Register copilot-validation diagnostics for DA and API plugin JSON files
+  registerCopilotDiagnostics(context);
 
   const oneDriveSharePointCodeLensProvider = new OneDriveSharePointCodeLensProvider();
   context.subscriptions.push(
