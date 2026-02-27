@@ -145,6 +145,11 @@ async function main() {
         src: "./node_modules/mermaid/dist/mermaid.min.js",
         dest: path.join(outputDirectory, "resource", "mermaid.min.js"),
       }),
+      // Copy copilot-validation WASM bundle for runtime Rego policy evaluation
+      copyStaticFiles({
+        src: "../manifest/src/copilot-validation/rules/bundle.wasm",
+        dest: path.join(outputDirectory, "src", "rules", "bundle.wasm"),
+      }),
       /* add to the end of plugins array */
       esbuildProblemMatcherPlugin,
     ],
