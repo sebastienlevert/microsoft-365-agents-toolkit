@@ -7,6 +7,8 @@
  */
 
 import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
 import { validateCopilotManifest } from "@microsoft/teamsfx-api";
 
 const DIAGNOSTIC_SOURCE = "Microsoft 365 Agents Toolkit";
@@ -23,6 +25,9 @@ export function registerCopilotDiagnostics(
   context: vscode.ExtensionContext
 ): vscode.DiagnosticCollection {
   const collection = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
+
+  // Serve bundled schemas for $schema URLs that VS Code can't fetch remotely
+  registerSchemaContentProvider(context);
 
   // Validate on open
   context.subscriptions.push(
@@ -160,4 +165,43 @@ function toRange(doc: vscode.TextDocument, error: { line: number; column: number
   }
 
   return new vscode.Range(startLine, startCol, startLine, startCol + length);
+}
+
+/**
+ * Map remote $schema URLs to locally bundled schema files.
+ *
+ * VS Code's JSON language service fires `json/schemaContent` requests
+ * for $schema URLs. Extensions can intercept these via the
+ * `vscode.json-language-features` middleware. When the remote URL is
+ * unreachable (e.g. behind a proxy or air-gapped), we serve the schema
+ * from the bundled copy instead.
+ */
+function registerSchemaContentProvider(context: vscode.ExtensionContext): void {
+  const schemasDir = path.join(context.extensionPath, "out", "schemas");
+
+  // Map remote CDN URLs to local schema files
+  const schemaMap: Record<string, string> = {
+    "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.6/schema.json":
+      path.join(schemasDir, "declarative-agent-v1.6.json"),
+    "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json": path.join(
+      schemasDir,
+      "api-plugin-v2.3.json"
+    ),
+  };
+
+  // Register an https content provider that intercepts schema URL requests
+  const provider: vscode.TextDocumentContentProvider = {
+    provideTextDocumentContent(uri: vscode.Uri): string | undefined {
+      const originalUrl = `https://${uri.authority}${uri.path}`;
+      const localPath = schemaMap[originalUrl];
+      if (localPath && fs.existsSync(localPath)) {
+        return fs.readFileSync(localPath, "utf-8");
+      }
+      return undefined;
+    },
+  };
+
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider("https", provider)
+  );
 }

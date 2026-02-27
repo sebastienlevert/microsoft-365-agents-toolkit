@@ -1861,55 +1861,13 @@
     ],
     "jsonValidation": [
       {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.6/schema.json",
+        "url": "./out/schemas/declarative-agent-v1.6.json",
         "fileMatch": [
           "*.json"
         ]
       },
       {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.5/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.4/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.3/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.2/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.0/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.2/schema.json",
-        "fileMatch": [
-          "*.json"
-        ]
-      },
-      {
-        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.1/schema.json",
+        "url": "./out/schemas/api-plugin-v2.3.json",
         "fileMatch": [
           "*.json"
         ]
