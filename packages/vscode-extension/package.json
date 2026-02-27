@@ -1859,6 +1859,62 @@
         "when": "fx-extension.isChatParticipantUIEntriesEnabled"
       }
     ],
+    "jsonValidation": [
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.0/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.2/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.3/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.4/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.5/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.6/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.1/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.2/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      },
+      {
+        "url": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json",
+        "fileMatch": [
+          "**/appPackage/*.json"
+        ]
+      }
+    ],
     "configuration": {
       "title": "Microsoft 365 Agents Toolkit",
       "properties": {
