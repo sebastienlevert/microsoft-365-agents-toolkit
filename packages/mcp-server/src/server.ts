@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { fetchSchema, SchemaTypeEnum } from "./fetcher";
 import { retrieveResource } from "./retriever";
+import { CopilotValidation, validateCopilotManifest } from "@microsoft/app-manifest";
 
 export function createServer(): McpServer {
   const server = new McpServer({
@@ -93,6 +94,71 @@ export function createServer(): McpServer {
           {
             type: "text",
             text: result,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "validate_agent",
+    "Validate a declarative agent or API plugin manifest JSON with deep semantic checks. Returns structured errors and warnings with line numbers, fix hints, and diagnostic codes. Use this before submitting or deploying an agent.",
+    {
+      manifest: z
+        .string()
+        .describe(
+          "The full JSON content of the declarative agent or API plugin manifest to validate"
+        ),
+      filename: z
+        .string()
+        .optional()
+        .describe("Optional file path for the manifest (enables file-reference validation)"),
+    },
+    async ({ manifest, filename }) => {
+      const result = await validateCopilotManifest(manifest, {
+        filename: filename,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "get_validation_rules",
+    "Get the list of all available validation rules for declarative agent and API plugin manifests. Returns rule IDs, descriptions, severity levels, and what each rule checks.",
+    {},
+    async () => {
+      const rules = await Promise.resolve(CopilotValidation.getValidationRules());
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(rules, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "suggest_fixes",
+    "Get fix suggestions for validation errors found in a declarative agent or API plugin manifest. Provide the manifest JSON to get targeted fix guidance for all issues.",
+    {
+      manifest: z.string().describe("The full JSON content of the manifest with validation errors"),
+    },
+    async ({ manifest }) => {
+      const fixes = await Promise.resolve(CopilotValidation.suggestFixes(manifest));
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(fixes, null, 2),
           },
         ],
       };
