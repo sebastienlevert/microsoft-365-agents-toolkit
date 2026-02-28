@@ -77,6 +77,10 @@ const config = {
           from: "../fx-core/templates/",
           to: "../templates/",
         },
+        {
+          from: "../manifest/build/copilot-validation/rules/bundle.wasm",
+          to: "rules/bundle.wasm",
+        },
       ],
     }),
     new webpack.ContextReplacementPlugin(/express[\/\\]lib/, false, /$^/),
