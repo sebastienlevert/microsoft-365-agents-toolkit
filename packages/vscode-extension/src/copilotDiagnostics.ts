@@ -90,7 +90,7 @@ function validateDocument(doc: vscode.TextDocument, collection: vscode.Diagnosti
   if (isCopilotManifest(doc)) {
     void runValidation(doc, collection);
   } else if (isInstructionsFile(doc)) {
-    runInstructionsFileValidation(doc, collection);
+    void runInstructionsFileValidation(doc, collection);
   }
 }
 
@@ -117,43 +117,64 @@ function isInstructionsFile(doc: vscode.TextDocument): boolean {
 }
 
 /**
- * Run static instructions analysis on a standalone .txt/.md file.
+ * Run validation on a standalone .txt/.md instruction file.
+ * Finds the parent DA manifest, runs the full validation pipeline,
+ * and remaps instruction-related diagnostics to this file.
  */
-function runInstructionsFileValidation(
+async function runInstructionsFileValidation(
   doc: vscode.TextDocument,
   collection: vscode.DiagnosticCollection
-): void {
+): Promise<void> {
   try {
     const text = doc.getText();
+    const diagnostics: vscode.Diagnostic[] = [];
+
+    // 1. Run static instructions text analysis directly on the file
     const rawDiags = CopilotValidation.analyzeInstructionsText(text);
-
-    // Try to find the parent agent JSON to get capabilities/actions context
-    const agentContext = findAgentContextForFile(doc.uri.fsPath);
-
-    // If we have agent context, also run capability-mention checks
-    const diagnostics: vscode.Diagnostic[] = rawDiags.map((d) => {
+    for (const d of rawDiags) {
       const range = new vscode.Range(
         d.range.start.line,
         d.range.start.character,
         d.range.end.line,
         Math.min(d.range.end.character, 1000)
       );
-      const severity =
-        d.severity === 1
-          ? vscode.DiagnosticSeverity.Error
-          : d.severity === 2
-          ? vscode.DiagnosticSeverity.Warning
-          : d.severity === 3
-          ? vscode.DiagnosticSeverity.Information
-          : vscode.DiagnosticSeverity.Hint;
+      const severity = mapSeverity(d.severity ?? 1);
       const diag = new vscode.Diagnostic(range, d.message, severity);
       diag.source = DIAGNOSTIC_SOURCE;
       diag.code = d.code;
-      return diag;
-    });
+      diagnostics.push(diag);
+    }
 
-    // Add a hint if agent context was found with capabilities not mentioned
-    if (agentContext && agentContext.capabilities.length > 0) {
+    // 2. Find the parent DA manifest and run full validation pipeline
+    const agentManifest = findAgentManifestForFile(doc.uri.fsPath);
+    if (agentManifest) {
+      const result = await validateCopilotManifest(agentManifest.content, {
+        filename: agentManifest.path,
+      });
+
+      // Extract instruction-related diagnostics and remap to this file
+      const instrDiags = [...result.errors, ...result.warnings].filter(
+        (e) => e.path.includes("instructions") || (e.code >= "M365-010" && e.code <= "M365-019")
+      );
+
+      const lines = text.split("\n");
+      for (const e of instrDiags) {
+        // Skip if we already have a static diagnostic with the same code+message
+        if (diagnostics.some((d) => d.code === e.code && d.message === e.message)) {
+          continue;
+        }
+        // Try to locate the relevant text in the instruction file
+        const range = findRangeInText(lines, e.message, e.hint);
+        const severity = result.errors.includes(e)
+          ? vscode.DiagnosticSeverity.Error
+          : vscode.DiagnosticSeverity.Warning;
+        const diag = new vscode.Diagnostic(range, e.message, severity);
+        diag.source = DIAGNOSTIC_SOURCE;
+        diag.code = e.code;
+        diagnostics.push(diag);
+      }
+
+      // Capability-mention check using the agent's actual capabilities
       const lowerText = text.toLowerCase();
       const capKeywords: Record<string, string[]> = {
         WebSearch: ["search", "web", "browse", "internet"],
@@ -164,11 +185,11 @@ function runInstructionsFileValidation(
         Dataverse: ["dataverse", "dynamics", "crm"],
         EmbeddedKnowledge: ["knowledge", "document", "file"],
       };
-      const unmentioned = agentContext.capabilities.filter((cap) => {
+      const unmentioned = agentManifest.capabilities.filter((cap) => {
         const keywords = capKeywords[cap] || [];
         return !keywords.some((kw) => lowerText.includes(kw));
       });
-      if (unmentioned.length > 0) {
+      if (unmentioned.length > 0 && !diagnostics.some((d) => d.code === "M365-013")) {
         const diag = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 1),
           `Instructions don't reference configured capabilities: ${unmentioned.join(
@@ -188,14 +209,79 @@ function runInstructionsFileValidation(
   }
 }
 
+function mapSeverity(severity: number): vscode.DiagnosticSeverity {
+  switch (severity) {
+    case 1:
+      return vscode.DiagnosticSeverity.Error;
+    case 2:
+      return vscode.DiagnosticSeverity.Warning;
+    case 3:
+      return vscode.DiagnosticSeverity.Information;
+    default:
+      return vscode.DiagnosticSeverity.Hint;
+  }
+}
+
+/**
+ * Try to find a quoted snippet or keywords from the diagnostic message
+ * in the instruction file text, returning a precise range.
+ */
+function findRangeInText(lines: string[], message: string, hint?: string): vscode.Range {
+  // Extract quoted strings from the message as search candidates
+  const quoted = [...message.matchAll(/"([^"]{3,})"/g)].map((m) => m[1]);
+  // Also try the hint
+  if (hint) {
+    quoted.push(...[...hint.matchAll(/"([^"]{3,})"/g)].map((m) => m[1]));
+  }
+
+  for (const snippet of quoted) {
+    const lower = snippet.toLowerCase();
+    for (let i = 0; i < lines.length; i++) {
+      const col = lines[i].toLowerCase().indexOf(lower);
+      if (col !== -1) {
+        return new vscode.Range(i, col, i, col + snippet.length);
+      }
+    }
+  }
+
+  // Fallback: keyword match from the message
+  const keywords = message
+    .toLowerCase()
+    .split(/[\s"(),.:]+/)
+    .filter((w) => w.length >= 4)
+    .slice(0, 5);
+
+  let bestLine = 0;
+  let bestScore = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const lower = lines[i].toLowerCase();
+    const score = keywords.filter((kw) => lower.includes(kw)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestLine = i;
+    }
+  }
+
+  if (bestScore >= 2) {
+    return new vscode.Range(bestLine, 0, bestLine, lines[bestLine].length);
+  }
+
+  return new vscode.Range(0, 0, 0, Math.min(lines[0]?.length || 1, 1));
+}
+
 /**
  * Look for a declarative agent JSON in the same appPackage folder
- * that references this instruction file via $[file(...)].
- * Returns capabilities/actions context if found.
+ * that references this instruction file.
+ * Returns the manifest content, path, and parsed context.
  */
-function findAgentContextForFile(
-  filePath: string
-): { capabilities: string[]; actions: string[] } | undefined {
+function findAgentManifestForFile(filePath: string):
+  | {
+      path: string;
+      content: string;
+      capabilities: string[];
+      actions: string[];
+    }
+  | undefined {
   try {
     const dir = path.dirname(filePath);
     const fileName = path.basename(filePath);
@@ -224,7 +310,7 @@ function findAgentContextForFile(
               .map((a) => a.id)
               .filter(Boolean) as string[])
           : [];
-        return { capabilities, actions };
+        return { path: fullPath, content, capabilities, actions };
       } catch {
         continue;
       }
@@ -360,10 +446,10 @@ async function runLLMAnalysis(collection: vscode.DiagnosticCollection): Promise<
     // Direct instruction file — analyze its contents
     instructionsText = doc.getText();
     // Try to find agent context from sibling JSON
-    const ctx = findAgentContextForFile(doc.uri.fsPath);
-    if (ctx) {
-      capabilities = ctx.capabilities;
-      actions = ctx.actions;
+    const agentManifest = findAgentManifestForFile(doc.uri.fsPath);
+    if (agentManifest) {
+      capabilities = agentManifest.capabilities;
+      actions = agentManifest.actions;
     }
   } else {
     // JSON manifest — extract and resolve instructions
