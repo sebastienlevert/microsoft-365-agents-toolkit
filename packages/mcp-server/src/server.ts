@@ -165,5 +165,74 @@ export function createServer(): McpServer {
     }
   );
 
+  server.tool(
+    "analyze_instructions_quality",
+    "Analyze the quality of a declarative agent's instructions using LLM-powered analysis. Returns a structured prompt for you to evaluate and report on contradictions, persona consistency, cognitive load, coverage gaps, and safety concerns. Run validate_agent first for static analysis, then use this for deeper semantic analysis.",
+    {
+      content: z
+        .record(z.unknown())
+        .optional()
+        .describe("The declarative agent JSON content containing instructions to analyze."),
+      instructions_text: z
+        .string()
+        .optional()
+        .describe(
+          "Raw instructions text to analyze. Use this if instructions are in a separate file. If both content and instructions_text are provided, instructions_text takes precedence."
+        ),
+    },
+    async ({ content, instructions_text }) => {
+      return await Promise.resolve().then(() => {
+        let instructionsText = instructions_text;
+        let capabilities: string[] = [];
+        let actions: string[] = [];
+
+        if (!instructionsText && content) {
+          const instructions = content.instructions;
+          if (typeof instructions === "string") {
+            instructionsText = instructions;
+          }
+          if (Array.isArray(content.capabilities)) {
+            capabilities = (content.capabilities as Array<{ name?: string }>)
+              .map((c) => c.name)
+              .filter(Boolean) as string[];
+          }
+          if (Array.isArray(content.actions)) {
+            actions = (content.actions as Array<{ id?: string }>)
+              .map((a) => a.id)
+              .filter(Boolean) as string[];
+          }
+        }
+
+        if (!instructionsText) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  error:
+                    "No instructions found. Provide either agent content with instructions or instructions_text directly.",
+                }),
+              },
+            ],
+          };
+        }
+
+        const analysisPrompt = CopilotValidation.buildInstructionsAnalysisPrompt(instructionsText, {
+          capabilities,
+          actions,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Please analyze these instructions and report any issues found:\n\n${analysisPrompt}`,
+            },
+          ],
+        };
+      });
+    }
+  );
+
   return server;
 }

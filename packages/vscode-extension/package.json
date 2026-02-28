@@ -617,6 +617,12 @@
     },
     "commands": [
       {
+        "command": "m365AgentsToolkit.analyzeAgentInstructions",
+        "title": "Analyze Agent Instructions with AI",
+        "category": "Microsoft 365 Agents",
+        "enablement": "editorLangId == json || editorLangId == jsonc"
+      },
+      {
         "command": "fx-extension.create",
         "title": "%teamstoolkit.commands.createProject.title%",
         "enablement": "!fx-extension.commandLocked",
