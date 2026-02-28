@@ -392,3 +392,6 @@ package-lock.json
 # add claude related ignores
 .claude/
 CLAUDE.md
+
+# npm pack tarballs
+*.tgz
