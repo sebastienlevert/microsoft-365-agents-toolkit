@@ -620,7 +620,7 @@
         "command": "m365AgentsToolkit.analyzeAgentInstructions",
         "title": "Analyze Agent Instructions with AI",
         "category": "Microsoft 365 Agents",
-        "enablement": "editorLangId == json || editorLangId == jsonc"
+        "enablement": "editorLangId == json || editorLangId == jsonc || editorLangId == plaintext || editorLangId == markdown"
       },
       {
         "command": "fx-extension.create",

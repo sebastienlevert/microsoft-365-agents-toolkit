@@ -3,12 +3,16 @@
 
 /**
  * Provides real-time diagnostics for declarative agent and API plugin
- * manifests by running copilot-validation on file open/save/change,
- * plus an LLM-powered "Analyze Agent Instructions" command that uses
- * the VS Code Language Model API for deep semantic analysis.
+ * manifests by running copilot-validation on file open/save/change.
+ *
+ * Also validates .txt/.md instruction files in appPackage/ folders,
+ * and provides an LLM-powered "Analyze Agent Instructions" command
+ * that uses the VS Code Language Model API for deep semantic analysis.
  */
 
 import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
 import { CopilotValidation, validateCopilotManifest } from "@microsoft/teamsfx-api";
 
 const DIAGNOSTIC_SOURCE = "Microsoft 365 Agents Toolkit";
@@ -40,14 +44,14 @@ export function registerCopilotDiagnostics(
   // Validate on open
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((doc) => {
-      void runValidation(doc, collection);
+      validateDocument(doc, collection);
     })
   );
 
   // Validate on save
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      void runValidation(doc, collection);
+      validateDocument(doc, collection);
     })
   );
 
@@ -59,14 +63,14 @@ export function registerCopilotDiagnostics(
         clearTimeout(debounceTimer);
       }
       debounceTimer = setTimeout(() => {
-        void runValidation(e.document, collection);
+        validateDocument(e.document, collection);
       }, 500);
     })
   );
 
   // Validate all already-open documents
   for (const doc of vscode.workspace.textDocuments) {
-    void runValidation(doc, collection);
+    validateDocument(doc, collection);
   }
 
   // Clear diagnostics when a document is closed
@@ -82,12 +86,153 @@ export function registerCopilotDiagnostics(
   return collection;
 }
 
+function validateDocument(doc: vscode.TextDocument, collection: vscode.DiagnosticCollection): void {
+  if (isCopilotManifest(doc)) {
+    void runValidation(doc, collection);
+  } else if (isInstructionsFile(doc)) {
+    runInstructionsFileValidation(doc, collection);
+  }
+}
+
 function isCopilotManifest(doc: vscode.TextDocument): boolean {
   if (doc.languageId !== "json" && doc.languageId !== "jsonc") {
     return false;
   }
   const text = doc.getText();
   return text.includes(DA_SCHEMA_PREFIX) || text.includes(PLUGIN_SCHEMA_PREFIX);
+}
+
+/**
+ * Check if a document is a .txt or .md file inside an appPackage folder.
+ */
+function isInstructionsFile(doc: vscode.TextDocument): boolean {
+  const fsPath = doc.uri.fsPath;
+  const ext = path.extname(fsPath).toLowerCase();
+  if (ext !== ".txt" && ext !== ".md") {
+    return false;
+  }
+  // Must be inside an appPackage folder
+  const normalized = fsPath.replace(/\\/g, "/");
+  return normalized.includes("/appPackage/");
+}
+
+/**
+ * Run static instructions analysis on a standalone .txt/.md file.
+ */
+function runInstructionsFileValidation(
+  doc: vscode.TextDocument,
+  collection: vscode.DiagnosticCollection
+): void {
+  try {
+    const text = doc.getText();
+    const rawDiags = CopilotValidation.analyzeInstructionsText(text);
+
+    // Try to find the parent agent JSON to get capabilities/actions context
+    const agentContext = findAgentContextForFile(doc.uri.fsPath);
+
+    // If we have agent context, also run capability-mention checks
+    const diagnostics: vscode.Diagnostic[] = rawDiags.map((d) => {
+      const range = new vscode.Range(
+        d.range.start.line,
+        d.range.start.character,
+        d.range.end.line,
+        Math.min(d.range.end.character, 1000)
+      );
+      const severity =
+        d.severity === 1
+          ? vscode.DiagnosticSeverity.Error
+          : d.severity === 2
+          ? vscode.DiagnosticSeverity.Warning
+          : d.severity === 3
+          ? vscode.DiagnosticSeverity.Information
+          : vscode.DiagnosticSeverity.Hint;
+      const diag = new vscode.Diagnostic(range, d.message, severity);
+      diag.source = DIAGNOSTIC_SOURCE;
+      diag.code = d.code;
+      return diag;
+    });
+
+    // Add a hint if agent context was found with capabilities not mentioned
+    if (agentContext && agentContext.capabilities.length > 0) {
+      const lowerText = text.toLowerCase();
+      const capKeywords: Record<string, string[]> = {
+        WebSearch: ["search", "web", "browse", "internet"],
+        Email: ["email", "mail", "outlook", "inbox"],
+        OneDriveAndSharePoint: ["sharepoint", "onedrive", "file", "document"],
+        CopilotConnectors: ["connector", "graph connector", "data source"],
+        TeamsMessages: ["teams", "chat", "channel", "message"],
+        Dataverse: ["dataverse", "dynamics", "crm"],
+        EmbeddedKnowledge: ["knowledge", "document", "file"],
+      };
+      const unmentioned = agentContext.capabilities.filter((cap) => {
+        const keywords = capKeywords[cap] || [];
+        return !keywords.some((kw) => lowerText.includes(kw));
+      });
+      if (unmentioned.length > 0) {
+        const diag = new vscode.Diagnostic(
+          new vscode.Range(0, 0, 0, 1),
+          `Instructions don't reference configured capabilities: ${unmentioned.join(
+            ", "
+          )}. Mention them so the agent knows when to use them.`,
+          vscode.DiagnosticSeverity.Information
+        );
+        diag.source = DIAGNOSTIC_SOURCE;
+        diag.code = "M365-013";
+        diagnostics.push(diag);
+      }
+    }
+
+    collection.set(doc.uri, diagnostics);
+  } catch {
+    // Best-effort
+  }
+}
+
+/**
+ * Look for a declarative agent JSON in the same appPackage folder
+ * that references this instruction file via $[file(...)].
+ * Returns capabilities/actions context if found.
+ */
+function findAgentContextForFile(
+  filePath: string
+): { capabilities: string[]; actions: string[] } | undefined {
+  try {
+    const dir = path.dirname(filePath);
+    const fileName = path.basename(filePath);
+    const jsonFiles = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+
+    for (const jsonFile of jsonFiles) {
+      const fullPath = path.join(dir, jsonFile);
+      const content = fs.readFileSync(fullPath, "utf-8");
+      // Check if this JSON references our file
+      if (!content.includes(fileName)) {
+        continue;
+      }
+      // Check if it's a declarative agent
+      if (!content.includes(DA_SCHEMA_PREFIX)) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        const capabilities = Array.isArray(parsed.capabilities)
+          ? ((parsed.capabilities as Array<{ name?: string }>)
+              .map((c) => c.name)
+              .filter(Boolean) as string[])
+          : [];
+        const actions = Array.isArray(parsed.actions)
+          ? ((parsed.actions as Array<{ id?: string }>)
+              .map((a) => a.id)
+              .filter(Boolean) as string[])
+          : [];
+        return { capabilities, actions };
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // Directory read failed
+  }
+  return undefined;
 }
 
 async function runValidation(
@@ -178,48 +323,92 @@ function toRange(doc: vscode.TextDocument, error: { line: number; column: number
 }
 
 /**
- * Run LLM-powered semantic analysis on the active document's agent instructions.
- * Uses the VS Code Language Model API (Copilot) for deep analysis.
+ * Run LLM-powered semantic analysis on agent instructions.
+ * Works on both:
+ * - Declarative agent JSON files (resolves $[file(...)] references)
+ * - .txt/.md instruction files in appPackage/
  */
 async function runLLMAnalysis(collection: vscode.DiagnosticCollection): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    void vscode.window.showWarningMessage("No active editor. Open a declarative agent JSON file.");
-    return;
-  }
-
-  const doc = editor.document;
-  if (!isCopilotManifest(doc)) {
     void vscode.window.showWarningMessage(
-      "This file is not a declarative agent or API plugin manifest."
+      "No active editor. Open a declarative agent JSON file or an instructions .txt/.md file."
     );
     return;
   }
 
-  // Parse agent content to extract instructions and context
-  let content: Record<string, unknown>;
-  try {
-    content = JSON.parse(doc.getText()) as Record<string, unknown>;
-  } catch {
-    void vscode.window.showErrorMessage("Cannot parse JSON. Fix syntax errors first.");
+  const doc = editor.document;
+  const isManifest = isCopilotManifest(doc);
+  const isInstructions = isInstructionsFile(doc);
+
+  if (!isManifest && !isInstructions) {
+    void vscode.window.showWarningMessage(
+      "This file is not a declarative agent manifest or an instructions file in appPackage/."
+    );
     return;
   }
 
-  const instructions = content.instructions;
-  if (typeof instructions !== "string" || instructions.trim().length === 0) {
-    void vscode.window.showWarningMessage("No instructions found in this agent manifest.");
-    return;
+  let instructionsText: string;
+  let capabilities: string[] = [];
+  let actions: string[] = [];
+  // The document whose URI we'll attach diagnostics to
+  let targetUri = doc.uri;
+  // Text to search for line position mapping
+  let searchText = doc.getText();
+
+  if (isInstructions) {
+    // Direct instruction file — analyze its contents
+    instructionsText = doc.getText();
+    // Try to find agent context from sibling JSON
+    const ctx = findAgentContextForFile(doc.uri.fsPath);
+    if (ctx) {
+      capabilities = ctx.capabilities;
+      actions = ctx.actions;
+    }
+  } else {
+    // JSON manifest — extract and resolve instructions
+    let content: Record<string, unknown>;
+    try {
+      content = JSON.parse(doc.getText()) as Record<string, unknown>;
+    } catch {
+      void vscode.window.showErrorMessage("Cannot parse JSON. Fix syntax errors first.");
+      return;
+    }
+
+    capabilities = Array.isArray(content.capabilities)
+      ? ((content.capabilities as Array<{ name?: string }>)
+          .map((c) => c.name)
+          .filter(Boolean) as string[])
+      : [];
+    actions = Array.isArray(content.actions)
+      ? ((content.actions as Array<{ id?: string }>).map((a) => a.id).filter(Boolean) as string[])
+      : [];
+
+    const rawInstructions = content.instructions;
+    if (typeof rawInstructions !== "string" || rawInstructions.trim().length === 0) {
+      void vscode.window.showWarningMessage("No instructions found in this agent manifest.");
+      return;
+    }
+
+    // Resolve file reference if instructions point to an external file
+    const resolved = CopilotValidation.resolveInstructionsText(content, doc.uri.toString());
+    if (resolved && resolved !== rawInstructions) {
+      // Instructions are in an external file — show diagnostics on that file
+      instructionsText = resolved;
+      const filePath = parseInstructionsFilePath(rawInstructions, doc.uri.fsPath);
+      if (filePath) {
+        targetUri = vscode.Uri.file(filePath);
+        searchText = resolved;
+      }
+    } else {
+      instructionsText = rawInstructions;
+    }
   }
 
-  // Extract capabilities and actions for richer analysis context
-  const capabilities = Array.isArray(content.capabilities)
-    ? ((content.capabilities as Array<{ name?: string }>)
-        .map((c) => c.name)
-        .filter(Boolean) as string[])
-    : [];
-  const actions = Array.isArray(content.actions)
-    ? ((content.actions as Array<{ id?: string }>).map((a) => a.id).filter(Boolean) as string[])
-    : [];
+  if (instructionsText.trim().length === 0) {
+    void vscode.window.showWarningMessage("Instructions are empty.");
+    return;
+  }
 
   await vscode.window.withProgress(
     {
@@ -233,10 +422,10 @@ async function runLLMAnalysis(collection: vscode.DiagnosticCollection): Promise<
         analyzer.setProxyFn(createVSCodeLMProxy(token));
 
         const diagnostics = await analyzer.analyze(
-          instructions,
+          instructionsText,
           { capabilities, actions },
           undefined,
-          doc.getText()
+          searchText
         );
 
         if (token.isCancellationRequested) {
@@ -264,7 +453,7 @@ async function runLLMAnalysis(collection: vscode.DiagnosticCollection): Promise<
           return diag;
         });
 
-        collection.set(doc.uri, vscodeDiags);
+        collection.set(targetUri, vscodeDiags);
 
         const issueCount = vscodeDiags.length;
         if (issueCount === 0) {
@@ -284,6 +473,24 @@ async function runLLMAnalysis(collection: vscode.DiagnosticCollection): Promise<
       }
     }
   );
+}
+
+/**
+ * Parse the file path from a $[file('...')] instructions reference,
+ * resolving it relative to the manifest document.
+ */
+function parseInstructionsFilePath(
+  instructionsValue: string,
+  manifestFsPath: string
+): string | undefined {
+  const match = instructionsValue.match(/^\$\[file\(['"](.+)['"]\)\]$/);
+  if (!match) {
+    return undefined;
+  }
+  const relPath = match[1];
+  const dir = path.dirname(manifestFsPath);
+  const resolved = path.resolve(dir, relPath);
+  return fs.existsSync(resolved) ? resolved : undefined;
 }
 
 /**
