@@ -33,11 +33,8 @@ export async function validateCopilotManifest(
 }
 
 /**
- * Run deep validation and return results as a simple string array,
- * matching the format of ManifestUtil.validateManifest().
- *
- * Errors are prefixed with their diagnostic code (e.g. "M365-002").
- * Warnings are prefixed with "[warn]".
+ * Run deep validation and return results as string arrays,
+ * with errors and warnings separated.
  *
  * @param manifest - The manifest object (or raw JSON string)
  * @param options  - Optional filename for file-reference resolution
@@ -45,12 +42,12 @@ export async function validateCopilotManifest(
 export async function validateCopilotManifestAsStrings(
   manifest: string | Record<string, unknown>,
   options: { filename?: string } = {}
-): Promise<string[]> {
+): Promise<{ errors: string[]; warnings: string[] }> {
   const result = await validateCopilotManifest(manifest, options);
-  return [
-    ...result.errors.map(formatValidationError),
-    ...result.warnings.map((w) => `[warn] ${formatValidationError(w)}`),
-  ];
+  return {
+    errors: result.errors.map(formatValidationError),
+    warnings: result.warnings.map(formatValidationError),
+  };
 }
 
 function formatValidationError(e: ValidationError): string {

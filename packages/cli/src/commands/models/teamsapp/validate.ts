@@ -96,38 +96,43 @@ async function runAgentValidation(
     if (format === "json") {
       logger.info(JSON.stringify(result, null, 2));
     } else {
-      if (result.errors.length === 0 && result.warnings.length === 0) {
-        logger.info("✅ Validation passed — no errors or warnings found.");
-      } else {
-        if (result.errors.length > 0) {
-          logger.error(`❌ ${String(result.errors.length)} error(s) found:\n`);
-          for (const e of result.errors) {
-            logger.error(`  ${e.code} [Ln ${String(e.line)}, Col ${String(e.column)}] ${e.path}`);
-            logger.error(`    ${e.message}`);
-            if (e.hint) {
-              logger.info(`    💡 ${e.hint}`);
-            }
-          }
-        }
-        if (result.warnings.length > 0) {
-          logger.info(`\n⚠️  ${String(result.warnings.length)} warning(s) found:\n`);
-          for (const w of result.warnings) {
-            logger.info(`  ${w.code} [Ln ${String(w.line)}, Col ${String(w.column)}] ${w.path}`);
-            logger.info(`    ${w.message}`);
-            if (w.hint) {
-              logger.info(`    💡 ${w.hint}`);
-            }
+      if (result.errors.length > 0) {
+        logger.info(`❌ ${String(result.errors.length)} error(s) found:\n`);
+        for (const e of result.errors) {
+          logger.info(`  ${e.code} [Ln ${String(e.line)}, Col ${String(e.column)}] ${e.path}`);
+          logger.info(`    ${e.message}`);
+          if (e.hint) {
+            logger.info(`    💡 ${e.hint}`);
           }
         }
       }
-      logger.info(
-        `\nSummary: ${String(result.errors.length)} error(s), ${String(
-          result.warnings.length
-        )} warning(s)`
-      );
+      if (result.warnings.length > 0) {
+        logger.info(`\n⚠️  ${String(result.warnings.length)} warning(s) found:\n`);
+        for (const w of result.warnings) {
+          logger.info(`  ${w.code} [Ln ${String(w.line)}, Col ${String(w.column)}] ${w.path}`);
+          logger.info(`    ${w.message}`);
+          if (w.hint) {
+            logger.info(`    💡 ${w.hint}`);
+          }
+        }
+      }
+      if (hasErrors) {
+        logger.info(
+          `\nSummary: ${String(result.errors.length)} error(s), ${String(
+            result.warnings.length
+          )} warning(s)`
+        );
+      } else if (result.warnings.length > 0) {
+        logger.info("\n✅ Validation passed with warnings.");
+      } else {
+        logger.info("✅ Validation passed — no errors or warnings found.");
+      }
     }
 
-    return hasErrors ? err(new AgentValidationError(result.errors.length)) : ok(undefined);
+    if (hasErrors) {
+      process.exitCode = 1;
+    }
+    return ok(undefined);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     logger.error(`Validation failed: ${message}`);

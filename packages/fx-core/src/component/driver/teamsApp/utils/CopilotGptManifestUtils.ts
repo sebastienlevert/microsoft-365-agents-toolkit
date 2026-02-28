@@ -190,12 +190,15 @@ export class CopilotGptManifestUtils {
       const manifestValidationRes = await ManifestUtil.validateManifest(manifestRes.value);
 
       // Run deep validation (Rego rules + TypeScript semantic validators)
-      let deepValidationRes: string[] = [];
+      let deepValidationErrors: string[] = [];
+      let deepValidationWarnings: string[] = [];
       try {
-        deepValidationRes = await validateCopilotManifestAsStrings(
+        const deepResult = await validateCopilotManifestAsStrings(
           manifestRes.value as unknown as Record<string, unknown>,
           { filename: manifestPath }
         );
+        deepValidationErrors = deepResult.errors;
+        deepValidationWarnings = deepResult.warnings;
       } catch {
         // Deep validation is best-effort; schema validation still runs
       }
@@ -203,7 +206,8 @@ export class CopilotGptManifestUtils {
       const res: DeclarativeCopilotManifestValidationResult = {
         id: declaraitveCopilot.id,
         filePath: manifestPath,
-        validationResult: [...manifestValidationRes, ...deepValidationRes],
+        validationResult: [...manifestValidationRes, ...deepValidationErrors],
+        validationWarnings: deepValidationWarnings,
         actionValidationResult: [],
       };
 
@@ -360,8 +364,10 @@ export class CopilotGptManifestUtils {
     platform: Platform
   ): string | Array<{ content: string; color: Colors }> {
     const validationErrors = validationRes.validationResult;
+    const validationWarnings = validationRes.validationWarnings ?? [];
     const filePath = validationRes.filePath;
     const hasDeclarativeCopilotError = validationErrors.length > 0;
+    const hasDeclarativeCopilotWarning = validationWarnings.length > 0;
     let hasActionError = false;
 
     for (const actionValidationRes of validationRes.actionValidationResult) {
@@ -370,7 +376,7 @@ export class CopilotGptManifestUtils {
         break;
       }
     }
-    if (!hasDeclarativeCopilotError && !hasActionError) {
+    if (!hasDeclarativeCopilotError && !hasDeclarativeCopilotWarning && !hasActionError) {
       return "";
     }
 
@@ -389,6 +395,14 @@ export class CopilotGptManifestUtils {
           ) +
           EOL +
           errors;
+      }
+      if (hasDeclarativeCopilotWarning) {
+        const warnings = validationWarnings
+          .map((warning: string) => {
+            return `${SummaryConstant.NotExecuted} ${warning}`;
+          })
+          .join(EOL);
+        outputMessage += (!outputMessage ? "" : EOL) + warnings;
       }
 
       for (const actionValidationRes of validationRes.actionValidationResult) {
@@ -417,6 +431,18 @@ export class CopilotGptManifestUtils {
           outputMessage.push({ content: `${SummaryConstant.Failed} `, color: Colors.BRIGHT_RED });
           outputMessage.push({
             content: `${error}\n`,
+            color: Colors.BRIGHT_WHITE,
+          });
+        });
+      }
+      if (hasDeclarativeCopilotWarning) {
+        validationWarnings.map((warning: string) => {
+          outputMessage.push({
+            content: `${SummaryConstant.NotExecuted} `,
+            color: Colors.BRIGHT_YELLOW,
+          });
+          outputMessage.push({
+            content: `${warning}\n`,
             color: Colors.BRIGHT_WHITE,
           });
         });

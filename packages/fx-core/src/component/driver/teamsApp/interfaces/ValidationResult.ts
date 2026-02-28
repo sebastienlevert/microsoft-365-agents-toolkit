@@ -4,6 +4,7 @@ export interface DeclarativeCopilotManifestValidationResult {
   id: string;
   filePath: string;
   validationResult: string[];
+  validationWarnings: string[];
   actionValidationResult: PluginManifestValidationResult[];
 }
 
