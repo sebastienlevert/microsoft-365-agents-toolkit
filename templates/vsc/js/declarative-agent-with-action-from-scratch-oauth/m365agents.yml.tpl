@@ -114,6 +114,11 @@ provision:
       manifestPath: ./aad.manifest.json
       outputFilePath: ./build/aad.manifest.${{TEAMSFX_ENV}}.json
 
+  # Validate using manifest schema
+  - uses: teamsApp/validateManifest
+    with:
+      manifestPath: ./appPackage/manifest.json
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:
@@ -175,6 +180,11 @@ deploy:
 
 # Triggered when 'teamsapp publish' is executed
 publish:
+  # Validate using manifest schema
+  - uses: teamsApp/validateManifest
+    with:
+      manifestPath: ./appPackage/manifest.json
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

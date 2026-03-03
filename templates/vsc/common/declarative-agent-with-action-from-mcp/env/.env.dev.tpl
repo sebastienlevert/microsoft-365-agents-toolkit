@@ -3,6 +3,7 @@
 # Built-in environment variables
 TEAMSFX_ENV=dev
 APP_NAME_SUFFIX=dev
+TEAMS_APP_VERSION=1.0.0
 
 # Generated during provision, you can also add your own variables.
 TEAMS_APP_ID=

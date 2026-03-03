@@ -48,6 +48,7 @@ provision:
       apiSpecPath: ./appPackage/apiSpecificationFile/repair.yml
       registrationId: ${{APIKEY_REGISTRATION_ID}}
 
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

@@ -21,6 +21,7 @@ provision:
         echo "::set-teamsfx-env FUNC_NAME=repair";
         echo "::set-teamsfx-env FUNC_ENDPOINT=http://localhost:7071";
 
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

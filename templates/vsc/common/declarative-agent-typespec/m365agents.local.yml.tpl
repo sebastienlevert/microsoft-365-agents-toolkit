@@ -36,6 +36,7 @@ provision:
       outputDir: ./appPackage/.generated
       typeSpecConfigPath: ./tspconfig.yaml
 
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

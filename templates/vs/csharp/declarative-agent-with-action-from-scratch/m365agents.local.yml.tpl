@@ -20,6 +20,7 @@ provision:
       run:
         echo "::set-teamsfx-env OPENAPI_SERVER_URL=https://${{DEV_TUNNEL_URL}}";
 
+
   # Build Teams app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

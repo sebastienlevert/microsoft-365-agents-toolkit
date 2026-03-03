@@ -125,6 +125,7 @@ provision:
         CLIENT_ID: ${{AAD_APP_CLIENT_ID}}
         TENANT_ID: ${{AAD_APP_TENANT_ID}}
 
+
   # Build Teams app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

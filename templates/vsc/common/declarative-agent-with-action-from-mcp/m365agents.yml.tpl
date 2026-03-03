@@ -17,6 +17,11 @@ provision:
     writeToEnvironmentFile:
       teamsAppId: TEAMS_APP_ID
 
+  # Validate using manifest schema
+  - uses: teamsApp/validateManifest
+    with:
+      manifestPath: ./appPackage/manifest.json
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:
@@ -51,6 +56,11 @@ provision:
 
 # Triggered when 'teamsapp publish' is executed
 publish:
+  # Validate using manifest schema
+  - uses: teamsApp/validateManifest
+    with:
+      manifestPath: ./appPackage/manifest.json
+
   # Build app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

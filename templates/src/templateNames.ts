@@ -5,7 +5,7 @@
 // @author Ning Tang
 export enum TemplateNames {
   // declarative agent
-  DeclarativeAgentBasic = "copilot-gpt-basic", // handled by DeclarativeAgentGenerator
+  DeclarativeAgentBasic = "declarative-agent-basic", // handled by DeclarativeAgentGenerator
   DeclarativeAgentWithActionFromScratch = "api-plugin-from-scratch", // handled by DeclarativeAgentGenerator
   DeclarativeAgentWithActionFromScratchBearer = "api-plugin-from-scratch-bearer", // handled by DeclarativeAgentGenerator (The DeclarativeAgentWithActionFromScratchBearer template is currently actually ApiPluginFromScratchAPIKey)
   DeclarativeAgentWithActionFromScratchOAuth = "api-plugin-from-scratch-oauth", // handled by DeclarativeAgentGenerator

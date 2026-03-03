@@ -7,7 +7,7 @@ const repoRoot = __dirname + "/../..";
 
 const codeOwnerMap = new Map([
   ["copilot-plugin-from-scratch", "Ning.Tang@microsoft.com"],
-  ["copilot-gpt-basic", "Ning.Tang@microsoft.com"],
+  ["declarative-agent-basic", "Ning.Tang@microsoft.com"],
   ["copilot-gpt-from-scratch-plugin", "Ning.Tang@microsoft.com"],
   ["dashboard-tab", "Ning.Tang@microsoft.com"],
   ["non-sso-tab", "zhijie.huang@microsoft.com"],

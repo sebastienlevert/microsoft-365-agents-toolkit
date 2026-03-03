@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/json-schemas/teams/vDevPreview/MicrosoftTeams.schema.json",
   "id": "${{TEAMS_APP_ID}}",
   "manifestVersion": "devPreview",
-  "version": "1.0.0",
+  "version": "${{TEAMS_APP_VERSION}}",
   "name": {
     "short": "{{appName}}",
     "full": "Full name for {{appName}}"

@@ -1623,6 +1623,8 @@ export class FxCore extends FxCoreDeclarativeAgentPart {
             writeStream.write(`APP_NAME_SUFFIX=${targetEnvName}${os.EOL}`);
           } else if (match[1].startsWith("AGENT_SCOPE=")) {
             writeStream.write(`AGENT_SCOPE=${match[2]}${os.EOL}`);
+          } else if (match[1].startsWith("TEAMS_APP_VERSION=")) {
+            writeStream.write(`TEAMS_APP_VERSION=${match[2] || "1.0.0"}${os.EOL}`);
           } else {
             writeStream.write(`${match[1]}${os.EOL}`);
           }

@@ -185,7 +185,7 @@ export enum Capability {
   Agent = "custom-copilot-agent",
   TaskPane = "taskpane",
   ApiPlugin = "api-plugin",
-  DeclarativeAgent = "copilot-gpt-basic",
+  DeclarativeAgent = "declarative-agent-basic",
   DeclarativeAgentWithActionFromScratchBearer = "api-plugin-from-scratch-bearer",
   DeclarativeAgentWithActionFromScratchOAuth = "api-plugin-from-scratch-oauth",
   DeclarativeAgentWithActionFromScratch = "api-plugin-from-scratch",

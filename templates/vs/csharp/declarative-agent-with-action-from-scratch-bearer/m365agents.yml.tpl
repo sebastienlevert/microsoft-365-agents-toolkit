@@ -58,6 +58,11 @@ provision:
     writeToEnvironmentFile:
       registrationId: APIKEY_REGISTRATION_ID
 
+  # Validate using manifest schema
+  - uses: teamsApp/validateManifest
+    with:
+      manifestPath: ./appPackage/manifest.json
+
   # Build Teams app package with latest env value
   - uses: teamsApp/zipAppPackage
     with:

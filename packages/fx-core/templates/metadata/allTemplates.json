@@ -1,14 +1,14 @@
 [
   {
     "id": "declarative-agent-basic",
-    "name": "copilot-gpt-basic",
+    "name": "declarative-agent-basic",
     "language": "common",
     "displayName": "Declarative Agent",
     "description": "Basic Declarative Agent without action"
   },
   {
     "id": "declarative-agent-basic-csharp",
-    "name": "copilot-gpt-basic",
+    "name": "declarative-agent-basic",
     "language": "csharp",
     "displayName": "Declarative Agent",
     "description": "Basic Declarative Agent without action"
