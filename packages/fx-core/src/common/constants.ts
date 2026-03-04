@@ -161,3 +161,5 @@ export const AzureScopes = () => {
 };
 
 export const SpecParserSource = "SpecParser";
+
+export const CopilotPackagesReadScopes = ["CopilotPackages.Read.All"];

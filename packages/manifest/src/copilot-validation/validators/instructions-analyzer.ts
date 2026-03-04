@@ -60,18 +60,6 @@ const CAPABILITY_NAMES = [
   "Actions",
 ];
 
-// Friendly display names for capabilities to check mentions in instructions
-const CAPABILITY_KEYWORDS: Record<string, string[]> = {
-  WebSearch: ["search", "web", "browse", "internet", "online"],
-  Email: ["email", "mail", "outlook", "inbox", "message"],
-  OneDriveAndSharePoint: ["sharepoint", "onedrive", "file", "document", "drive"],
-  CopilotConnectors: ["connector", "graph connector", "data source"],
-  TeamsMessages: ["teams", "chat", "channel", "message"],
-  Dataverse: ["dataverse", "dynamics", "crm", "data"],
-  EmbeddedKnowledge: ["knowledge", "document", "file"],
-  Actions: ["action", "api", "plugin", "function"],
-};
-
 /**
  * Resolve the instructions text content from inline or file reference.
  */
@@ -134,7 +122,6 @@ export function analyzeInstructions(
   analyzeAmbiguity(ctx, instructionsText);
   analyzeVagueTerms(ctx, instructionsText);
   analyzePersona(ctx, instructionsText);
-  analyzeCapabilityMentions(ctx, content, instructionsText);
   analyzeRedundancy(ctx, instructionsText);
   analyzeInstructionLength(ctx, content, instructionsText);
 }
@@ -239,44 +226,6 @@ function analyzePersona(ctx: DiagnosticContext, text: string): void {
       ["instructions"],
       "M365-012",
       'Instructions lack a persona definition. Consider adding "You are a..." to establish the agent\'s role and personality.',
-      DiagnosticSeverity.Information
-    );
-  }
-}
-
-/**
- * Check if instructions mention configured capabilities.
- */
-function analyzeCapabilityMentions(ctx: DiagnosticContext, content: unknown, text: string): void {
-  const capabilities = getValueAtPath(content, ["capabilities"]);
-  if (!Array.isArray(capabilities) || capabilities.length < 2) {
-    return;
-  }
-
-  const lowerText = text.toLowerCase();
-  const unmentioned: string[] = [];
-
-  for (const cap of capabilities) {
-    const capName = (cap as Record<string, unknown>).name as string;
-    if (!capName || !CAPABILITY_KEYWORDS[capName]) {
-      continue;
-    }
-
-    const keywords = CAPABILITY_KEYWORDS[capName];
-    const mentioned = keywords.some((kw) => lowerText.includes(kw));
-    if (!mentioned) {
-      unmentioned.push(capName);
-    }
-  }
-
-  if (unmentioned.length > 0) {
-    reportDiagnosticAtPath(
-      ctx,
-      ["instructions"],
-      "M365-013",
-      `Instructions don't reference configured capabilities: ${unmentioned.join(
-        ", "
-      )}. Mention them so the agent knows when to use them.`,
       DiagnosticSeverity.Information
     );
   }

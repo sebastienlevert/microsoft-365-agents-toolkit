@@ -8,8 +8,7 @@ export const ImportProjectOptions: CLICommandOption[] = [
     name: "zip-file-path",
     type: "string",
     shortName: "z",
-    description: "Path to the Agent Builder zip file to import.",
-    required: true,
+    description: "Path to the Agent Builder zip file to import. Alternative to --title-id.",
   },
   {
     name: "folder",
@@ -30,5 +29,19 @@ export const ImportProjectOptions: CLICommandOption[] = [
     type: "boolean",
     description: "Overwrite existing output directory if it exists.",
     default: false,
+  },
+  {
+    name: "title-id",
+    type: "string",
+    shortName: "t",
+    description:
+      "M365 title ID of the agent to import directly from Copilot. Alternative to --zip-file-path.",
+  },
+  {
+    name: "client-id",
+    type: "string",
+    shortName: "c",
+    description:
+      "[Temporary] Azure AD app registration client ID with CopilotPackages.Read.All delegated permission. Required when using --title-id. This option will be removed once the permission is added to the built-in app.",
   },
 ];

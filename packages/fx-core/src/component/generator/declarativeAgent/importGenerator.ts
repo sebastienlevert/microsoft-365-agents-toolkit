@@ -2,10 +2,14 @@
 // Licensed under the MIT license.
 
 /**
- * Import generator for declarative agents from Agent Builder zip exports.
- * Extracts the zip, scaffolds a declarative-agent-basic project, then overlays
- * the imported agent data (declarativeAgent.json, instructions, capabilities,
- * conversation starters, icons, and env vars).
+ * Import generator for declarative agents.
+ * Supports two modes:
+ * 1. From Agent Builder zip file (--zip-file-path)
+ * 2. From Copilot API via title ID (--title-id)
+ *
+ * Both paths extract the declarative agent data, scaffold a declarative-agent-basic
+ * project, then overlay the imported agent data (declarativeAgent.json, instructions,
+ * capabilities, conversation starters, icons, and env vars).
  */
 
 import {
@@ -25,6 +29,8 @@ import fs from "fs-extra";
 import * as os from "os";
 import * as path from "path";
 import { ImportProjectInputs } from "../../../question/inputs/ImportProjectInputs";
+import { getResourceServiceEndpoint, ResourceServiceType } from "../../../common/constants";
+import { WrappedAxiosClient } from "../../../common/wrappedAxiosClient";
 
 const componentName = "import-declarative-agent-generator";
 
@@ -88,32 +94,57 @@ interface DeclarativeAgentManifest {
 }
 
 /**
- * Import a declarative agent from an Agent Builder zip file.
- * 1. Extracts zip → finds manifest.json → finds declarativeAgent.json
- * 2. Scaffolds a project using the declarative-agent-basic template
- * 3. Overlays imported data (declarativeAgent.json, instruction.txt, icons, env vars)
+ * Import a declarative agent from a zip file or directly from Copilot API.
+ * - If --title-id is provided, fetches agent data from the Copilot Admin API.
+ * - If --zip-file-path is provided, extracts agent data from the zip file.
+ * Then scaffolds a project using the declarative-agent-basic template and
+ * overlays the imported data.
  */
 export async function importDeclarativeAgent(
   context: Context,
   inputs: ImportProjectInputs
 ): Promise<Result<CreateProjectResult, FxError>> {
+  const titleId = inputs["title-id"];
   const zipFilePath = inputs["zip-file-path"];
-  if (!zipFilePath) {
+  const clientId = inputs["client-id"];
+
+  if (!titleId && !zipFilePath) {
     return err(
-      new UserError(componentName, "MissingZipFilePath", "The --zip-file-path option is required.")
+      new UserError(
+        componentName,
+        "MissingImportSource",
+        "Either --title-id or --zip-file-path must be provided."
+      )
     );
   }
 
-  if (!(await fs.pathExists(zipFilePath))) {
+  if (titleId && !clientId) {
     return err(
-      new UserError(componentName, "ZipFileNotFound", `Zip file not found: ${zipFilePath}`)
+      new UserError(
+        componentName,
+        "MissingClientId",
+        "The --client-id option is required when using --title-id. Register a 3P app with CopilotPackages.Read.All delegated permission and provide its client ID."
+      )
     );
   }
 
   let extractedData: ExtractedAgentData | undefined;
   try {
-    // Step 1: Extract and parse zip
-    extractedData = await extractAndParseZip(zipFilePath);
+    // Step 1: Get agent data from either source
+    if (titleId) {
+      extractedData = await fetchFromCopilotAPI(context, titleId, clientId!);
+    } else {
+      if (!(await fs.pathExists(zipFilePath!))) {
+        return err(
+          new UserError(
+            componentName,
+            "ZipFileNotFound",
+            `Zip file not found: ${zipFilePath ?? ""}`
+          )
+        );
+      }
+      extractedData = await extractAndParseZip(zipFilePath!);
+    }
 
     // Step 2: Determine project name and path
     const appName = inputs["app-name"] || sanitizeProjectName(extractedData.declarativeAgent.name);
@@ -138,7 +169,7 @@ export async function importDeclarativeAgent(
     await scaffoldBaseProject(context, inputs, appName, projectPath);
 
     // Step 4: Overlay imported data
-    await overlayImportedData(projectPath, extractedData, appName);
+    await overlayImportedData(projectPath, extractedData, appName, titleId);
 
     return ok({ projectPath });
   } catch (e) {
@@ -248,6 +279,217 @@ async function extractAndParseZip(zipFilePath: string): Promise<ExtractedAgentDa
   };
 }
 
+/**
+ * Copilot Admin API response types.
+ */
+interface CopilotPackageElement {
+  id: string;
+  definition: string;
+}
+
+interface CopilotPackageElementDetail {
+  elementType: string;
+  elements: CopilotPackageElement[];
+}
+
+interface CopilotPackageDetailResponse {
+  id: string;
+  shortDescription?: string;
+  longDescription?: string;
+  version?: string;
+  type?: string;
+  elementDetails?: CopilotPackageElementDetail[];
+  [key: string]: unknown;
+}
+
+/**
+ * Get the path to the MSAL token cache file for Copilot API imports.
+ */
+function getCopilotCachePath(): string {
+  return path.join(os.homedir(), ".fx", "copilot-import-cache.json");
+}
+
+/**
+ * Fetch declarative agent data directly from the Copilot Admin API.
+ * Uses a standalone MSAL auth flow with a user-provided 3P app registration
+ * to avoid the 1P app preauthorization limitation.
+ * Tokens are cached in ~/.fx/copilot-import-cache.json for reuse.
+ */
+async function fetchFromCopilotAPI(
+  context: Context,
+  titleId: string,
+  clientId: string
+): Promise<ExtractedAgentData> {
+  const { PublicClientApplication } = await import("@azure/msal-node");
+
+  // Set up file-based token cache
+  const cachePath = getCopilotCachePath();
+  await fs.ensureDir(path.dirname(cachePath));
+  let cacheData = "";
+  if (await fs.pathExists(cachePath)) {
+    cacheData = await fs.readFile(cachePath, "utf-8");
+  }
+
+  const pca = new PublicClientApplication({
+    auth: {
+      clientId,
+      authority: "https://login.microsoftonline.com/common",
+    },
+  });
+
+  // Load cache into MSAL
+  if (cacheData) {
+    pca.getTokenCache().deserialize(cacheData);
+  }
+
+  const scopes = ["https://graph.microsoft.com/CopilotPackages.Read.All"];
+
+  let accessToken: string;
+  try {
+    // Try silent acquisition first (uses cached tokens)
+    const accounts = await pca.getTokenCache().getAllAccounts();
+    if (accounts.length > 0) {
+      try {
+        const silentResult = await pca.acquireTokenSilent({
+          scopes,
+          account: accounts[0],
+        });
+        if (silentResult?.accessToken) {
+          accessToken = silentResult.accessToken;
+          // Persist updated cache
+          const updatedCache = pca.getTokenCache().serialize();
+          await fs.writeFile(cachePath, updatedCache, "utf-8");
+        }
+      } catch {
+        // Silent failed — fall through to device code flow
+      }
+    }
+
+    // If silent didn't work, use device code flow
+    if (!accessToken!) {
+      const tokenResponse = await pca.acquireTokenByDeviceCode({
+        scopes,
+        deviceCodeCallback: (response) => {
+          process.stderr.write(`\n${response.message}\n\n`);
+        },
+      });
+      if (!tokenResponse?.accessToken) {
+        throw new Error("No access token returned");
+      }
+      accessToken = tokenResponse.accessToken;
+
+      // Persist cache after successful login
+      const updatedCache = pca.getTokenCache().serialize();
+      await fs.writeFile(cachePath, updatedCache, "utf-8");
+    }
+  } catch (e: any) {
+    throw new UserError(
+      componentName,
+      "CopilotAuthFailed",
+      `Failed to authenticate for Copilot API: ${e instanceof Error ? e.message : String(e)}`
+    );
+  }
+
+  const graphBaseUrl =
+    process.env.GRAPH_ENDPOINT ?? `${getResourceServiceEndpoint(ResourceServiceType.Graph)}/beta`;
+  const requester = WrappedAxiosClient.create({
+    baseURL: graphBaseUrl,
+  });
+  requester.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+  requester.defaults.headers.common["Content-Type"] = "application/json";
+
+  // Fetch package details
+  let packageDetail: CopilotPackageDetailResponse;
+  try {
+    const response = await requester.get(`/copilot/admin/catalog/packages/${titleId}`);
+    packageDetail = response.data;
+  } catch (e: any) {
+    const status = e?.response?.status;
+    const responseBody = e?.response?.data ? JSON.stringify(e.response.data, null, 2) : "";
+    if (status === 404) {
+      throw new UserError(
+        componentName,
+        "AgentNotFound",
+        `Agent with title ID "${titleId}" was not found in your organization's Copilot catalog.${
+          responseBody ? `\n${responseBody}` : ""
+        }`
+      );
+    }
+    if (status === 403 || status === 401) {
+      throw new UserError(
+        componentName,
+        "CopilotAccessDenied",
+        `Access denied (HTTP ${String(
+          status
+        )}). Ensure admin consent is granted for CopilotPackages.Read.All and you have the required admin role.${
+          responseBody ? `\nAPI response: ${responseBody}` : ""
+        }`
+      );
+    }
+    throw new SystemError(
+      componentName,
+      "CopilotApiFailed",
+      `Failed to fetch agent from Copilot API (HTTP ${String(status ?? "unknown")}): ${
+        e instanceof Error ? e.message : String(e)
+      }${responseBody ? `\nAPI response: ${responseBody}` : ""}`
+    );
+  }
+
+  // Find DeclarativeCopilots element
+  const daElementDetail = packageDetail.elementDetails?.find(
+    (ed) => ed.elementType === "DeclarativeCopilots"
+  );
+  if (!daElementDetail || !daElementDetail.elements.length) {
+    throw new UserError(
+      componentName,
+      "NoDeclarativeAgentInPackage",
+      `Package "${titleId}" does not contain a declarative agent.`
+    );
+  }
+
+  // Parse the first declarative agent definition
+  const daElement = daElementDetail.elements[0];
+  let declarativeAgent: DeclarativeAgentManifest;
+  try {
+    declarativeAgent = JSON.parse(daElement.definition);
+  } catch {
+    throw new SystemError(
+      componentName,
+      "InvalidAgentDefinition",
+      "Failed to parse declarative agent definition from Copilot API response."
+    );
+  }
+
+  if (!declarativeAgent.name) {
+    declarativeAgent.name = packageDetail.shortDescription || `Agent ${titleId}`;
+  }
+  if (!declarativeAgent.description) {
+    declarativeAgent.description =
+      packageDetail.longDescription || packageDetail.shortDescription || "";
+  }
+
+  // Resolve instructions (inline only — no file refs from API)
+  const instructions =
+    typeof declarativeAgent.instructions === "string" ? declarativeAgent.instructions : "";
+
+  // No temp directory or icon assets from the API
+  const extractedPath = await fs.mkdtemp(path.join(os.tmpdir(), "atk-import-api-"));
+
+  return {
+    extractedPath,
+    teamsManifest: {
+      name: { short: declarativeAgent.name },
+      description: {
+        short: packageDetail.shortDescription || declarativeAgent.description,
+        full: packageDetail.longDescription,
+      },
+    },
+    declarativeAgent,
+    instructions,
+    assetFiles: [],
+  };
+}
+
 async function scaffoldBaseProject(
   context: Context,
   inputs: ImportProjectInputs,
@@ -319,7 +561,8 @@ async function scaffoldBaseProject(
 async function overlayImportedData(
   projectPath: string,
   data: ExtractedAgentData,
-  appName: string
+  appName: string,
+  titleId?: string
 ): Promise<void> {
   const appPackagePath = path.join(projectPath, AppPackageFolderName);
   await fs.ensureDir(appPackagePath);
@@ -406,6 +649,9 @@ async function overlayImportedData(
     }
     if (data.declarativeAgent.description) {
       additionalVars.push(`AGENT_DESCRIPTION=${data.declarativeAgent.description}`);
+    }
+    if (titleId) {
+      additionalVars.push(`M365_TITLE_ID=${titleId}`);
     }
 
     envContent += additionalVars.join("\n") + "\n";

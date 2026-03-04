@@ -205,7 +205,9 @@
       "zip-file-path": "Path to the Agent Builder zip file to import.",
       "folder": "Directory where the project folder will be created in.",
       "app-name": "Application name. Defaults to the agent name from the manifest.",
-      "overwrite": "Overwrite existing output directory if it exists."
+      "overwrite": "Overwrite existing output directory if it exists.",
+      "title-id": "M365 title ID of the agent to import directly from Copilot. Alternative to --zip-file-path.",
+      "client-id": "[Temporary] Azure AD app registration client ID with CopilotPackages.Read.All delegated permission. Required when using --title-id. This option will be removed once the permission is added to the built-in app."
     }
   }
 }

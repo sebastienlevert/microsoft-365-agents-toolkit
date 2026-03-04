@@ -10,4 +10,8 @@ export interface ImportProjectInputs extends Inputs {
   "app-name"?: string;
   /** @description Overwrite existing output directory if it exists */
   overwrite?: boolean;
+  /** @description M365 title ID to import directly from Copilot */
+  "title-id"?: string;
+  /** @description Azure AD app registration client ID for Copilot API access */
+  "client-id"?: string;
 }

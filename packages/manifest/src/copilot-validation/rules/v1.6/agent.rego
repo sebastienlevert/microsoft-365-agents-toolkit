@@ -100,7 +100,7 @@ deny contains result if {
     "code": "M365-002",
     "severity": "warning",
     "path": "name",
-    "message": "Name contains characters outside recommended pattern (alphanumeric and underscores only)"
+    "message": "Name contains characters outside recommended pattern (alphanumeric, underscores, and spaces only)"
   }
 }
 

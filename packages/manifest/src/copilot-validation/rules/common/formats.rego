@@ -146,9 +146,9 @@ is_valid_hostname(hostname) if {
   regex.match(`^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$`, hostname)
 }
 
-# Check if string matches DA name pattern (alphanumeric + underscore only)
+# Check if string matches DA name pattern (alphanumeric, underscore, and spaces)
 is_valid_da_name(name) if {
-  regex.match(`^[a-zA-Z0-9_]*$`, name)
+  regex.match(`^[a-zA-Z0-9_ ]*$`, name)
 }
 
 # Check if string matches plugin namespace pattern (alphanumeric + hyphens only)

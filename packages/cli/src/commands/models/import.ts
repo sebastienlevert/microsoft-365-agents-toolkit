@@ -15,11 +15,22 @@ export function getImportCommand(): CLICommand {
     name: "import",
     description: commands["import"].description,
     options: [...ImportProjectOptions],
-    reservedOptionNamesInInteractiveMode: ["zip-file-path", "folder", "app-name", "overwrite"],
+    reservedOptionNamesInInteractiveMode: [
+      "zip-file-path",
+      "folder",
+      "app-name",
+      "overwrite",
+      "title-id",
+      "client-id",
+    ],
     examples: [
       {
         command: `${process.env.TEAMSFX_CLI_BIN_NAME} import --zip-file-path ./agent-export.zip -n my-agent -i false`,
         description: "Import a declarative agent from an Agent Builder zip file",
+      },
+      {
+        command: `${process.env.TEAMSFX_CLI_BIN_NAME} import --title-id U_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx --client-id YOUR_APP_CLIENT_ID -i false`,
+        description: "Import a declarative agent directly from Copilot by title ID",
       },
     ],
     telemetry: {
