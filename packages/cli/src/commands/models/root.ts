@@ -11,6 +11,7 @@ import { helper } from "../helper";
 import { accountCommand } from "./account";
 import { addCommand } from "./add";
 import { getCreateCommand } from "./create";
+import { getImportCommand } from "./import";
 import { deployCommand } from "./deploy";
 import { entraAppCommand } from "./entraAppUpdate";
 import { envCommand } from "./env";
@@ -50,6 +51,7 @@ export const rootCommand: CLICommand = {
   commands: [
     accountCommand,
     getCreateCommand(),
+    getImportCommand(),
     addCommand(),
     regenerateCommand(),
     provisionCommand,

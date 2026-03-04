@@ -198,5 +198,14 @@
   },
   "validate": {
     "description": "Validate the app using manifest schema, validation rules, or test cases."
+  },
+  "import": {
+    "description": "Import a declarative agent from an Agent Builder zip file.",
+    "options": {
+      "zip-file-path": "Path to the Agent Builder zip file to import.",
+      "folder": "Directory where the project folder will be created in.",
+      "app-name": "Application name. Defaults to the agent name from the manifest.",
+      "overwrite": "Overwrite existing output directory if it exists."
+    }
   }
 }

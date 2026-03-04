@@ -20,6 +20,9 @@ export enum TelemetryEvent {
   CreateProjectStart = "create-project-start",
   CreateProject = "create-project",
 
+  ImportProjectStart = "import-project-start",
+  ImportProject = "import-project",
+
   InitInfraStart = "init-infra-start",
   InitInfra = "init-infra",
 

@@ -251,10 +251,18 @@ export class FxCore extends FxCoreDeclarativeAgentPart {
   }
 
   @hooks([
-    ErrorContextMW({ component: "FxCore", stage: "createProjectFromTdp", reset: true }),
+    ErrorContextMW({ component: "FxCore", stage: "importProject", reset: true }),
     ErrorHandlerMW,
-    QuestionMW("createFromTdp"),
   ])
+  async importProject(inputs: Inputs): Promise<Result<CreateProjectResult, FxError>> {
+    const context = createContext();
+    const { importDeclarativeAgent } = await import(
+      "../component/generator/declarativeAgent/importGenerator"
+    );
+    return importDeclarativeAgent(context, inputs);
+  }
+
+  @hooks([ErrorHandlerMW, QuestionMW("createFromTdp")])
   async createProjectFromTdp(inputs: Inputs): Promise<Result<CreateProjectResult, FxError>> {
     const context = createContext();
     inputs[QuestionNames.Scratch] = ScratchOptions.yes().id;
