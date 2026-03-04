@@ -1263,6 +1263,13 @@ function registerLanguageFeatures(context: vscode.ExtensionContext) {
       manifestTemplateCodeLensProvider
     )
   );
+  // Register env var CodeLens for declarative agent and API plugin files
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      agentManifestSelector,
+      manifestTemplateCodeLensProvider
+    )
+  );
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(
       permissionsJsonFileSelector,

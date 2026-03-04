@@ -14,13 +14,107 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import { CopilotValidation, validateCopilotManifest } from "@microsoft/teamsfx-api";
+import { envUtil, environmentNameManager } from "@microsoft/teamsfx-core";
+import { getSystemInputs } from "./utils/systemEnvUtils";
 
 const DIAGNOSTIC_SOURCE = "Microsoft 365 Agents Toolkit";
 const LLM_DIAGNOSTIC_SOURCE = "Microsoft 365 Agents Toolkit (AI)";
 
+// Regex to match ${{VAR_NAME}} patterns
+const envVarRegex = /\${{ *([a-zA-Z_][a-zA-Z0-9_]*) *}}/g;
+
 // Schema URL prefixes used to identify declarative agent / API plugin files
 const DA_SCHEMA_PREFIX = "developer.microsoft.com/json-schemas/copilot/declarative-agent";
 const PLUGIN_SCHEMA_PREFIX = "developer.microsoft.com/json-schemas/copilot/plugin";
+
+/**
+ * Load environment variables for all environments in the current project.
+ * Reads from VS Code editor buffers when available (for live updates),
+ * falling back to disk via envUtil.readEnv.
+ * Returns a map of envName → { key: value }.
+ */
+async function loadAllEnvVars(): Promise<Record<string, Record<string, string>>> {
+  try {
+    const inputs = getSystemInputs();
+    if (!inputs.projectPath) {
+      return {};
+    }
+    const listRes = await envUtil.listEnv(inputs.projectPath);
+    if (listRes.isErr()) {
+      return {};
+    }
+    const result: Record<string, Record<string, string>> = {};
+    for (const envName of listRes.value) {
+      // Check if the env file is open in an editor — use its live buffer
+      const liveVars = readEnvFromEditorBuffer(envName);
+      if (liveVars) {
+        result[envName] = liveVars;
+      } else {
+        const envRes = await envUtil.readEnv(inputs.projectPath, envName, false);
+        if (envRes.isOk()) {
+          result[envName] = envRes.value;
+        }
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Try to read env vars from an open VS Code editor buffer for the given env name.
+ * Returns parsed key-value pairs if the file is open, or undefined to fall back to disk.
+ */
+function readEnvFromEditorBuffer(envName: string): Record<string, string> | undefined {
+  const suffix = `.env.${envName}`;
+  for (const doc of vscode.workspace.textDocuments) {
+    if (doc.uri.fsPath.endsWith(suffix) && !doc.isClosed) {
+      return parseDotEnv(doc.getText());
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Simple .env file parser: extracts KEY=VALUE pairs, ignoring comments and blank lines.
+ */
+function parseDotEnv(content: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx > 0) {
+      const key = trimmed.substring(0, eqIdx).trim();
+      const value = trimmed.substring(eqIdx + 1).trim();
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Expand ${{VAR}} patterns in content using env vars.
+ * A variable is "unresolved" only when the key does NOT exist in the env.
+ * An empty string value IS a valid resolution.
+ */
+function expandEnvVars(
+  content: string,
+  envs: Record<string, string>
+): { resolved: string; unresolved: string[] } {
+  const unresolved: string[] = [];
+  const resolved = content.replace(envVarRegex, (match, varName) => {
+    if (varName in envs) {
+      return envs[varName];
+    }
+    unresolved.push(varName);
+    return match;
+  });
+  return { resolved, unresolved: [...new Set(unresolved)] };
+}
 
 /**
  * Register a diagnostic provider that validates declarative agent and API
@@ -41,6 +135,25 @@ export function registerCopilotDiagnostics(
     )
   );
 
+  // Match .env.{name} and .env.{name}.user files
+  const isEnvFile = (doc: vscode.TextDocument) =>
+    /[\\/]\.env\.[\w-]+(\.user)?$/.test(doc.uri.fsPath);
+
+  // Debounced revalidation of all manifests — coalesces rapid triggers
+  // (save handler, file watcher, editor changes) into a single validation run
+  // to prevent race conditions where competing runs cancel each other via the
+  // sequence counter, leaving stale or incomplete diagnostics.
+  let envRevalidateTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleEnvRevalidation = (delay = 150) => {
+    if (envRevalidateTimer) {
+      clearTimeout(envRevalidateTimer);
+    }
+    envRevalidateTimer = setTimeout(() => {
+      envRevalidateTimer = undefined;
+      revalidateAllManifests(collection);
+    }, delay);
+  };
+
   // Validate on open
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((doc) => {
@@ -48,23 +161,39 @@ export function registerCopilotDiagnostics(
     })
   );
 
-  // Validate on save
+  // Validate on save — also revalidate all manifests when an env file is saved
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      validateDocument(doc, collection);
+      if (isEnvFile(doc)) {
+        scheduleEnvRevalidation();
+      } else {
+        validateDocument(doc, collection);
+      }
     })
   );
 
-  // Validate on change (debounced)
-  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  // Validate on change (debounced per document).
+  // When an .env.* file is edited in the editor, revalidate all manifests
+  // so diagnostics update live without requiring a save.
+  const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
+      if (isEnvFile(e.document)) {
+        scheduleEnvRevalidation(500);
+      } else {
+        const docKey = e.document.uri.toString();
+        const existing = debounceTimers.get(docKey);
+        if (existing) {
+          clearTimeout(existing);
+        }
+        debounceTimers.set(
+          docKey,
+          setTimeout(() => {
+            debounceTimers.delete(docKey);
+            validateDocument(e.document, collection);
+          }, 500)
+        );
       }
-      debounceTimer = setTimeout(() => {
-        validateDocument(e.document, collection);
-      }, 500);
     })
   );
 
@@ -72,6 +201,15 @@ export function registerCopilotDiagnostics(
   for (const doc of vscode.workspace.textDocuments) {
     validateDocument(doc, collection);
   }
+
+  // Watch .env.* files on disk — re-validate all open manifests when env vars change
+  // (covers external edits, git checkout, etc.)
+  const envWatcher = vscode.workspace.createFileSystemWatcher("**/.env.*");
+  const scheduleFromDisk = () => scheduleEnvRevalidation();
+  context.subscriptions.push(envWatcher.onDidChange(scheduleFromDisk));
+  context.subscriptions.push(envWatcher.onDidCreate(scheduleFromDisk));
+  context.subscriptions.push(envWatcher.onDidDelete(scheduleFromDisk));
+  context.subscriptions.push(envWatcher);
 
   // Clear diagnostics when a document is closed
   context.subscriptions.push(
@@ -91,6 +229,20 @@ function validateDocument(doc: vscode.TextDocument, collection: vscode.Diagnosti
     void runValidation(doc, collection);
   } else if (isInstructionsFile(doc)) {
     void runInstructionsFileValidation(doc, collection);
+  }
+}
+
+/**
+ * Re-validate all open manifest and instruction documents.
+ * Called when env files change (editor edits, disk saves, external changes).
+ */
+function revalidateAllManifests(collection: vscode.DiagnosticCollection): void {
+  for (const doc of vscode.workspace.textDocuments) {
+    // Only revalidate manifests — instruction files don't use env vars
+    // and are validated independently on their own open/save/change events.
+    if (isCopilotManifest(doc)) {
+      void runValidation(doc, collection);
+    }
   }
 }
 
@@ -171,34 +323,6 @@ async function runInstructionsFileValidation(
         const diag = new vscode.Diagnostic(range, e.message, severity);
         diag.source = DIAGNOSTIC_SOURCE;
         diag.code = e.code;
-        diagnostics.push(diag);
-      }
-
-      // Capability-mention check using the agent's actual capabilities
-      const lowerText = text.toLowerCase();
-      const capKeywords: Record<string, string[]> = {
-        WebSearch: ["search", "web", "browse", "internet"],
-        Email: ["email", "mail", "outlook", "inbox"],
-        OneDriveAndSharePoint: ["sharepoint", "onedrive", "file", "document"],
-        CopilotConnectors: ["connector", "graph connector", "data source"],
-        TeamsMessages: ["teams", "chat", "channel", "message"],
-        Dataverse: ["dataverse", "dynamics", "crm"],
-        EmbeddedKnowledge: ["knowledge", "document", "file"],
-      };
-      const unmentioned = agentManifest.capabilities.filter((cap) => {
-        const keywords = capKeywords[cap] || [];
-        return !keywords.some((kw) => lowerText.includes(kw));
-      });
-      if (unmentioned.length > 0 && !diagnostics.some((d) => d.code === "M365-013")) {
-        const diag = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 1),
-          `Instructions don't reference configured capabilities: ${unmentioned.join(
-            ", "
-          )}. Mention them so the agent knows when to use them.`,
-          vscode.DiagnosticSeverity.Information
-        );
-        diag.source = DIAGNOSTIC_SOURCE;
-        diag.code = "M365-013";
         diagnostics.push(diag);
       }
     }
@@ -321,6 +445,9 @@ function findAgentManifestForFile(filePath: string):
   return undefined;
 }
 
+// Per-document validation sequence to cancel stale async validations.
+const validationSeqMap = new Map<string, number>();
+
 async function runValidation(
   doc: vscode.TextDocument,
   collection: vscode.DiagnosticCollection
@@ -329,33 +456,325 @@ async function runValidation(
     return;
   }
 
+  const docKey = doc.uri.toString();
+  const mySeq = (validationSeqMap.get(docKey) ?? 0) + 1;
+  validationSeqMap.set(docKey, mySeq);
+  const isCurrent = () => validationSeqMap.get(docKey) === mySeq;
+
   try {
-    const result = await validateCopilotManifest(doc.getText(), {
-      filename: doc.uri.fsPath,
-    });
+    const rawText = doc.getText();
+    const allEnvs = await loadAllEnvVars();
+    if (!isCurrent()) return;
+    const envNames = Object.keys(allEnvs);
+    const envVarMap = buildEnvVarPathMap(rawText);
 
-    const diagnostics: vscode.Diagnostic[] = [];
-
-    for (const error of result.errors) {
-      const range = toRange(doc, error);
-      const diag = new vscode.Diagnostic(range, error.message, vscode.DiagnosticSeverity.Error);
-      diag.source = DIAGNOSTIC_SOURCE;
-      diag.code = error.code;
-      diagnostics.push(diag);
+    // If no envs found, validate raw text as-is but handle unresolved vars
+    if (envNames.length === 0) {
+      const diagnostics: vscode.Diagnostic[] = [];
+      // Report all env vars as unresolved errors — no env files exist
+      const reportedVars = new Set<string>();
+      for (const [, vars] of envVarMap) {
+        for (const varName of vars) {
+          if (!reportedVars.has(varName)) {
+            reportedVars.add(varName);
+            const range = findEnvVarRange(doc, varName);
+            const diag = new vscode.Diagnostic(
+              range,
+              `Environment variable \${{${varName}}} is not set (no environment files found).`,
+              vscode.DiagnosticSeverity.Error
+            );
+            diag.source = DIAGNOSTIC_SOURCE;
+            diag.code = "M365-ENV";
+            diagnostics.push(diag);
+          }
+        }
+      }
+      // Still validate for errors on non-env-var paths
+      const result = await validateCopilotManifest(rawText, {
+        filename: doc.uri.fsPath,
+      });
+      if (!isCurrent()) return;
+      for (const error of [...result.errors, ...result.warnings]) {
+        if (findEnvVarsForPath(envVarMap, error.path).length > 0) {
+          continue;
+        }
+        const range = findRangeByPath(doc, error.path) ?? toRange(doc, error);
+        const severity = result.errors.includes(error)
+          ? vscode.DiagnosticSeverity.Error
+          : vscode.DiagnosticSeverity.Warning;
+        const diag = new vscode.Diagnostic(range, error.message, severity);
+        diag.source = DIAGNOSTIC_SOURCE;
+        diag.code = error.code;
+        diagnostics.push(diag);
+      }
+      collection.set(doc.uri, diagnostics);
+      return;
     }
 
-    for (const warning of result.warnings) {
-      const range = toRange(doc, warning);
-      const diag = new vscode.Diagnostic(range, warning.message, vscode.DiagnosticSeverity.Warning);
-      diag.source = DIAGNOSTIC_SOURCE;
-      diag.code = warning.code;
-      diagnostics.push(diag);
+    // Validate against every environment to ensure a valid build for all.
+    // Emit one diagnostic per environment per error, except for errors that
+    // don't depend on env vars (e.g. instruction quality) which are reported once.
+    const diagnostics: vscode.Diagnostic[] = [];
+    const multiEnv = envNames.length > 1;
+    // Track env-independent errors already reported so they aren't duplicated
+    const reportedEnvIndependent = new Set<string>();
+
+    for (const envName of envNames) {
+      const { resolved: resolvedText, unresolved } = expandEnvVars(rawText, allEnvs[envName]);
+      const unresolvedSet = new Set(unresolved);
+
+      // Report unresolved env vars for this environment as errors
+      for (const varName of unresolved) {
+        const range = findEnvVarRange(doc, varName);
+        const envSuffix = multiEnv ? ` [${envName}]` : "";
+        const diag = new vscode.Diagnostic(
+          range,
+          `Environment variable \${{${varName}}} is not set in ${envName}.${envSuffix}`,
+          vscode.DiagnosticSeverity.Error
+        );
+        diag.source = DIAGNOSTIC_SOURCE;
+        diag.code = "M365-ENV";
+        diagnostics.push(diag);
+      }
+
+      const result = await validateCopilotManifest(resolvedText, {
+        filename: doc.uri.fsPath,
+      });
+      if (!isCurrent()) return;
+
+      for (const error of [...result.errors, ...result.warnings]) {
+        // Skip errors at paths where an env var is unresolved —
+        // those are already covered by the "not set" diagnostics above.
+        // Resolved env var paths still get validated normally.
+        const envVarsAtPath = findEnvVarsForPath(envVarMap, error.path);
+        if (envVarsAtPath.some((v) => unresolvedSet.has(v))) {
+          continue;
+        }
+
+        // Also skip if the resolved text at this error still contains an
+        // unresolved placeholder — catches cases where path matching misses.
+        if (unresolvedSet.size > 0 && errorInvolvesUnresolved(resolvedText, error, unresolvedSet)) {
+          continue;
+        }
+
+        // Errors not involving env vars (e.g. instruction quality) are
+        // identical across environments — report them only once without
+        // an environment suffix.
+        const isEnvDependent = envVarsAtPath.length > 0;
+        if (!isEnvDependent) {
+          const dedupKey = `${error.code}::${error.path}::${error.message}`;
+          if (reportedEnvIndependent.has(dedupKey)) {
+            continue;
+          }
+          reportedEnvIndependent.add(dedupKey);
+        }
+
+        let range: vscode.Range;
+        let message = error.message;
+        if (isEnvDependent) {
+          const varNames = envVarsAtPath.map((v) => `\${{${v}}}`).join(", ");
+          message = `${error.message} (from ${varNames})`;
+          range = findEnvVarRange(doc, envVarsAtPath[0]);
+        } else {
+          range = findRangeByPath(doc, error.path) ?? toRange(doc, error);
+        }
+
+        const severity = result.errors.includes(error)
+          ? vscode.DiagnosticSeverity.Error
+          : vscode.DiagnosticSeverity.Warning;
+        const envSuffix = multiEnv && isEnvDependent ? ` [${envName}]` : "";
+        const diag = new vscode.Diagnostic(range, `${message}${envSuffix}`, severity);
+        diag.source = DIAGNOSTIC_SOURCE;
+        diag.code = error.code;
+        diagnostics.push(diag);
+      }
     }
 
     collection.set(doc.uri, diagnostics);
   } catch {
     // Validation is best-effort — don't show errors for broken JSON
   }
+}
+
+/**
+ * Map a validation result to VS Code diagnostics on the original document.
+ */
+function mapResultToDiagnostics(
+  doc: vscode.TextDocument,
+  result: {
+    errors: Array<{ code: string; path: string; message: string; line: number; column: number }>;
+    warnings: Array<{ code: string; path: string; message: string; line: number; column: number }>;
+  }
+): vscode.Diagnostic[] {
+  const diagnostics: vscode.Diagnostic[] = [];
+  for (const error of result.errors) {
+    const range = findRangeByPath(doc, error.path) ?? toRange(doc, error);
+    const diag = new vscode.Diagnostic(range, error.message, vscode.DiagnosticSeverity.Error);
+    diag.source = DIAGNOSTIC_SOURCE;
+    diag.code = error.code;
+    diagnostics.push(diag);
+  }
+  for (const warning of result.warnings) {
+    const range = findRangeByPath(doc, warning.path) ?? toRange(doc, warning);
+    const diag = new vscode.Diagnostic(range, warning.message, vscode.DiagnosticSeverity.Warning);
+    diag.source = DIAGNOSTIC_SOURCE;
+    diag.code = warning.code;
+    diagnostics.push(diag);
+  }
+  return diagnostics;
+}
+
+/**
+ * Build a map from JSON property paths to the env var names referenced
+ * in their string values.  e.g. { "name": "${{AGENT_NAME}}" } → Map("name" → ["AGENT_NAME"])
+ */
+function buildEnvVarPathMap(rawText: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  try {
+    const obj = JSON.parse(rawText) as unknown;
+    walkForEnvVars(obj, "", map);
+  } catch {
+    // Invalid JSON — skip
+  }
+  return map;
+}
+
+function walkForEnvVars(obj: unknown, prefix: string, map: Map<string, string[]>): void {
+  if (typeof obj === "string") {
+    const vars: string[] = [];
+    let m: RegExpExecArray | null;
+    const regex = /\$\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+    while ((m = regex.exec(obj)) !== null) {
+      vars.push(m[1]);
+    }
+    if (vars.length > 0) {
+      map.set(prefix, vars);
+    }
+  } else if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      walkForEnvVars(obj[i], `${prefix}[${i}]`, map);
+    }
+  } else if (obj !== null && typeof obj === "object") {
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const p = prefix ? `${prefix}.${key}` : key;
+      walkForEnvVars(value, p, map);
+    }
+  }
+}
+
+/**
+ * Normalize a JSON path by stripping array bracket content to just "[]",
+ * so that "capabilities[0].sites[0].url" and "capabilities[WebSearch].sites[0].url"
+ * both become "capabilities[].sites[].url".
+ */
+function normalizePath(p: string): string {
+  return p.replace(/\[[^\]]*\]/g, "[]");
+}
+
+/**
+ * Find env var names whose JSON path matches or is a child of the given error path.
+ * Handles mismatched array indices (numeric vs named) by normalizing paths.
+ */
+function findEnvVarsForPath(envVarMap: Map<string, string[]>, errorPath: string): string[] {
+  if (!errorPath) {
+    return [];
+  }
+  // Direct match
+  if (envVarMap.has(errorPath)) {
+    return envVarMap.get(errorPath)!;
+  }
+  // Normalized match (handles capabilities[0] vs capabilities[WebSearch])
+  const normalizedError = normalizePath(errorPath);
+  const vars: string[] = [];
+  for (const [mapPath, mapVars] of envVarMap) {
+    const normalizedMap = normalizePath(mapPath);
+    if (
+      normalizedMap === normalizedError ||
+      normalizedMap.startsWith(normalizedError + ".") ||
+      normalizedMap.startsWith(normalizedError + "[")
+    ) {
+      vars.push(...mapVars);
+    }
+  }
+  return [...new Set(vars)];
+}
+
+/**
+ * Fallback check: determine if a validation error involves an unresolved env var
+ * by inspecting the resolved text around the error position for leftover
+ * ${{VAR}} placeholders. Catches cases where path-based matching misses.
+ */
+function errorInvolvesUnresolved(
+  resolvedText: string,
+  error: { line: number; column: number; path: string },
+  unresolvedSet: Set<string>
+): boolean {
+  // Check if any unresolved placeholder appears in the error's message context
+  // by looking at the resolved text near the error location
+  const lines = resolvedText.split("\n");
+  const lineIdx = Math.max(0, (error.line || 1) - 1);
+  if (lineIdx < lines.length) {
+    const lineText = lines[lineIdx];
+    for (const varName of unresolvedSet) {
+      if (lineText.includes(`\${{${varName}}}`)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Find the range of a ${{VAR_NAME}} reference in the document.
+ */
+function findEnvVarRange(doc: vscode.TextDocument, varName: string): vscode.Range {
+  const text = doc.getText();
+  const pattern = new RegExp(`\\$\\{\\{\\s*${varName}\\s*\\}\\}`);
+  const match = pattern.exec(text);
+  if (match) {
+    const pos = doc.positionAt(match.index);
+    return new vscode.Range(pos, doc.positionAt(match.index + match[0].length));
+  }
+  return new vscode.Range(0, 0, 0, 1);
+}
+
+/**
+ * Find a range in the original document by JSON property path (e.g., "name",
+ * "capabilities[0].name"). This is used to map errors from the env-resolved
+ * text back to the correct position in the original document.
+ */
+function findRangeByPath(doc: vscode.TextDocument, jsonPath: string): vscode.Range | undefined {
+  if (!jsonPath) {
+    return undefined;
+  }
+  // Convert path like "capabilities[0].name" to a search for the last key
+  const segments = jsonPath.split(/[.\[\]]+/).filter(Boolean);
+  const lastKey = segments[segments.length - 1];
+  if (!lastKey || /^\d+$/.test(lastKey)) {
+    // Array index — use the parent key
+    const parentKey = segments.length >= 2 ? segments[segments.length - 2] : undefined;
+    if (!parentKey) {
+      return undefined;
+    }
+    return findKeyRange(doc, parentKey);
+  }
+  return findKeyRange(doc, lastKey);
+}
+
+/**
+ * Find the range of a JSON key's value in the document.
+ */
+function findKeyRange(doc: vscode.TextDocument, key: string): vscode.Range | undefined {
+  const text = doc.getText();
+  // Search for "key": ... pattern
+  const keyPattern = new RegExp(`"${key}"\\s*:\\s*`);
+  const match = keyPattern.exec(text);
+  if (!match) {
+    return undefined;
+  }
+  const valueStart = match.index + match[0].length;
+  const pos = doc.positionAt(valueStart);
+  return toRange(doc, { line: pos.line + 1, column: pos.character + 1 });
 }
 
 /**
