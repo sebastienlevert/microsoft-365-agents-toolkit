@@ -25,7 +25,7 @@ interface EmbeddedKnowledgeCapability {
 }
 
 const ALLOWED_EXTENSIONS = ["doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "pdf"];
-const MAX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
+const MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB per .NET ManifestRules
 
 /**
  * Validate EmbeddedKnowledge capability
@@ -133,7 +133,7 @@ function validateEmbeddedFile(
         ctx,
         filePath,
         "M365-003",
-        `File exceeds 512 MB size limit (current: ${sizeMB} MB): "${fileValue}"`,
+        `File exceeds 1 MB size limit (current: ${sizeMB} MB): "${fileValue}"`,
         DiagnosticSeverity.Error
       );
     }

@@ -34,7 +34,7 @@ export function validateActions(ctx: DiagnosticContext, content: unknown): void 
 
   const obj = content as Record<string, unknown>;
 
-  // Validate name_for_human (max 2048 chars)
+  // Validate name_for_human (max 20 chars per .NET ManifestRules)
   if (obj.name_for_human !== undefined) {
     validateNotEmpty(ctx, content, ["name_for_human"], "name_for_human");
     validateMaxLength(
@@ -42,7 +42,7 @@ export function validateActions(ctx: DiagnosticContext, content: unknown): void 
       content,
       ["name_for_human"],
       "name_for_human",
-      2048,
+      20,
       DiagnosticSeverity.Warning
     );
   }

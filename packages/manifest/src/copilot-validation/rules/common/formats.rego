@@ -140,3 +140,23 @@ is_secure_file_path(path) if {
   not startswith(path, "\\\\")
   not is_windows_absolute_path(path)
 }
+
+# Check if string is a valid hostname format
+is_valid_hostname(hostname) if {
+  regex.match(`^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$`, hostname)
+}
+
+# Check if string matches DA name pattern (alphanumeric + underscore only)
+is_valid_da_name(name) if {
+  regex.match(`^[a-zA-Z0-9_]*$`, name)
+}
+
+# Check if string matches plugin namespace pattern (alphanumeric + hyphens only)
+is_valid_namespace(ns) if {
+  regex.match(`^[A-Za-z0-9-]+$`, ns)
+}
+
+# Check if string matches plugin function name pattern
+is_valid_function_name(name) if {
+  regex.match(`^[a-zA-Z0-9_-]*$`, name)
+}
