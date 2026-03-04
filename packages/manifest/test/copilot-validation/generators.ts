@@ -47,3 +47,66 @@ export function createValidAgentWithWorkerAgents(count: number): Record<string, 
   }));
   return createValidAgent({ worker_agents: workers });
 }
+
+// ============================================
+// PLUGIN GENERATORS
+// ============================================
+
+export const SCHEMA_API_PLUGIN =
+  "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json";
+
+export function createValidPlugin(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    $schema: SCHEMA_API_PLUGIN,
+    schema_version: "v2.3",
+    name_for_human: "TestPlugin",
+    description_for_human: "A test plugin for validation",
+    namespace: "testplugin",
+    logo_url: "https://example.com/logo.png",
+    contact_email: "test@example.com",
+    legal_info_url: "https://example.com/legal",
+    privacy_policy_url: "https://example.com/privacy",
+    functions: [
+      {
+        name: "testFunction",
+        description: "A test function",
+      },
+    ],
+    runtimes: [
+      {
+        type: "OpenApi",
+        auth: { type: "None" },
+        spec: { url: "https://api.example.com/openapi.yaml" },
+        run_for_functions: ["testFunction"],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function createValidPluginWithFunctions(
+  functions: Array<Record<string, unknown>>,
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return createValidPlugin({
+    functions,
+    runtimes: [
+      {
+        type: "OpenApi",
+        auth: { type: "None" },
+        spec: { url: "https://api.example.com/openapi.yaml" },
+        run_for_functions: functions.map((f) => f.name as string).filter(Boolean),
+      },
+    ],
+    ...overrides,
+  });
+}
+
+export function createValidPluginWithRuntimes(
+  runtimes: Array<Record<string, unknown>>,
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return createValidPlugin({ runtimes, ...overrides });
+}
