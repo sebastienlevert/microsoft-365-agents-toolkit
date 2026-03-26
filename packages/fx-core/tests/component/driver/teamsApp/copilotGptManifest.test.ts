@@ -612,6 +612,7 @@ describe("copilotGptManifestUtils", () => {
               validationResult: ["error1"],
             },
           ],
+          skillValidationResult: [],
         });
       }
     });
@@ -705,6 +706,7 @@ describe("copilotGptManifestUtils", () => {
             validationResult: [],
           },
         ],
+        skillValidationResult: [],
       };
 
       const res = copilotGptManifestUtils.logValidationErrors(validationRes, Platform.VSCode);
@@ -728,6 +730,7 @@ describe("copilotGptManifestUtils", () => {
             validationResult: ["errorAction2"],
           },
         ],
+        skillValidationResult: [],
       };
 
       const res = copilotGptManifestUtils.logValidationErrors(
@@ -757,6 +760,7 @@ describe("copilotGptManifestUtils", () => {
             validationResult: ["errorAction2"],
           },
         ],
+        skillValidationResult: [],
       };
 
       const res = copilotGptManifestUtils.logValidationErrors(
@@ -780,6 +784,7 @@ describe("copilotGptManifestUtils", () => {
             validationResult: ["errorAction1"],
           },
         ],
+        skillValidationResult: [],
       };
 
       const res = copilotGptManifestUtils.logValidationErrors(
@@ -808,6 +813,7 @@ describe("copilotGptManifestUtils", () => {
             validationResult: ["errorAction2"],
           },
         ],
+        skillValidationResult: [],
       };
 
       const res = copilotGptManifestUtils.logValidationErrors(
@@ -1482,6 +1488,434 @@ describe("copilotGptManifestUtils", () => {
       chai.assert.isTrue(res.isErr());
       if (res.isErr()) {
         chai.assert.isTrue(res.error instanceof WriteFileError);
+      }
+    });
+  });
+
+  describe("addSkill", () => {
+    it("adds skill entry to manifest and writes file", async () => {
+      const manifest: DeclarativeCopilotManifestSchema = {
+        name: "test-agent",
+        description: "description",
+      };
+      sandbox
+        .stub(copilotGptManifestUtils, "readCopilotGptManifestFile")
+        .resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "writeCopilotGptManifestFile")
+        .resolves(ok(undefined));
+
+      const res = await copilotGptManifestUtils.addSkill(
+        "testPath",
+        "./skills/mySkill",
+        false
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        const manifestAny = res.value as any;
+        chai.assert.isArray(manifestAny["agent_skills"]);
+        chai.assert.lengthOf(manifestAny["agent_skills"], 1);
+        chai.assert.deepEqual(manifestAny["agent_skills"][0], {
+          folder: "./skills/mySkill",
+        });
+      }
+    });
+
+    it("prevents duplicate entries", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      sandbox
+        .stub(copilotGptManifestUtils, "readCopilotGptManifestFile")
+        .resolves(ok(manifest as DeclarativeCopilotManifestSchema));
+      sandbox
+        .stub(copilotGptManifestUtils, "writeCopilotGptManifestFile")
+        .resolves(ok(undefined));
+
+      const res = await copilotGptManifestUtils.addSkill(
+        "testPath",
+        "./skills/mySkill",
+        false
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        const manifestAny = res.value as any;
+        chai.assert.lengthOf(manifestAny["agent_skills"], 1);
+      }
+    });
+
+    it("sets expose_skill_to_copilot when true", async () => {
+      const manifest: DeclarativeCopilotManifestSchema = {
+        name: "test-agent",
+        description: "description",
+      };
+      sandbox
+        .stub(copilotGptManifestUtils, "readCopilotGptManifestFile")
+        .resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "writeCopilotGptManifestFile")
+        .resolves(ok(undefined));
+
+      const res = await copilotGptManifestUtils.addSkill(
+        "testPath",
+        "./skills/exposed",
+        true
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        const manifestAny = res.value as any;
+        chai.assert.deepEqual(manifestAny["agent_skills"][0], {
+          folder: "./skills/exposed",
+          expose_skill_to_copilot: true,
+        });
+      }
+    });
+
+    it("returns error when readCopilotGptManifestFile fails", async () => {
+      sandbox
+        .stub(copilotGptManifestUtils, "readCopilotGptManifestFile")
+        .resolves(err(new UserError("test", "test", "test", "test")));
+
+      const res = await copilotGptManifestUtils.addSkill(
+        "testPath",
+        "./skills/mySkill",
+        false
+      );
+
+      chai.assert.isTrue(res.isErr());
+    });
+
+    it("returns error when writeCopilotGptManifestFile fails", async () => {
+      const manifest: DeclarativeCopilotManifestSchema = {
+        name: "test-agent",
+        description: "description",
+      };
+      sandbox
+        .stub(copilotGptManifestUtils, "readCopilotGptManifestFile")
+        .resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "writeCopilotGptManifestFile")
+        .resolves(err(new UserError("test", "test", "test", "test")));
+
+      const res = await copilotGptManifestUtils.addSkill(
+        "testPath",
+        "./skills/mySkill",
+        false
+      );
+
+      chai.assert.isTrue(res.isErr());
+    });
+  });
+
+  describe("validateAgainstSchema - skill validation", () => {
+    const driverContext = {
+      logProvider: new MockedLogProvider(),
+      telemetryReporter: new MockedTelemetryReporter(),
+      projectPath: "test",
+      addTelemetryProperties: () => {},
+    };
+
+    it("validates skill folder exists", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/missing" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").callsFake(async (p: string) => {
+        if (typeof p === "string" && p.includes("missing")) {
+          return false;
+        }
+        return true;
+      });
+      sandbox.stub(fs, "readFile").resolves(JSON.stringify(manifest) as any);
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult, 1);
+        chai.assert.isTrue(
+          res.value.skillValidationResult[0].validationResult.some((r) =>
+            r.includes("Skill folder not found")
+          )
+        );
+      }
+    });
+
+    it("validates SKILL.md exists in skill folder", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/noSkillMd" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").callsFake(async (p: string) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return false;
+        }
+        return true;
+      });
+      sandbox.stub(fs, "readFile").resolves(JSON.stringify(manifest) as any);
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult, 1);
+        chai.assert.isTrue(
+          res.value.skillValidationResult[0].validationResult.some((r) =>
+            r.includes("SKILL.md not found")
+          )
+        );
+      }
+    });
+
+    it("validates SKILL.md has name in frontmatter", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+
+      const skillMdContent = "---\ndescription: some desc\n---\n# content";
+      const readFileStub = sandbox.stub(fs, "readFile");
+      readFileStub.callsFake(async (p: any, _opts?: any) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return skillMdContent as any;
+        }
+        return JSON.stringify(manifest) as any;
+      });
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult, 1);
+        chai.assert.isTrue(
+          res.value.skillValidationResult[0].validationResult.some((r) =>
+            r.includes("missing required field 'name'")
+          )
+        );
+      }
+    });
+
+    it("validates SKILL.md has description in frontmatter", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+
+      const skillMdContent = "---\nname: mySkill\n---\n# content";
+      const readFileStub = sandbox.stub(fs, "readFile");
+      readFileStub.callsFake(async (p: any, _opts?: any) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return skillMdContent as any;
+        }
+        return JSON.stringify(manifest) as any;
+      });
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult, 1);
+        chai.assert.isTrue(
+          res.value.skillValidationResult[0].validationResult.some((r) =>
+            r.includes("missing required field 'description'")
+          )
+        );
+      }
+    });
+
+    it("no errors when skills are valid", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+
+      const skillMdContent = "---\nname: mySkill\ndescription: A valid skill\n---\n# content";
+      const readFileStub = sandbox.stub(fs, "readFile");
+      readFileStub.callsFake(async (p: any, _opts?: any) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return skillMdContent as any;
+        }
+        return JSON.stringify(manifest) as any;
+      });
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult, 1);
+        chai.assert.lengthOf(res.value.skillValidationResult[0].validationResult, 0);
+      }
+    });
+
+    it("no errors when no skills present", async () => {
+      const manifest: DeclarativeCopilotManifestSchema = {
+        name: "test-agent",
+        description: "description",
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+      sandbox.stub(fs, "readFile").resolves(JSON.stringify(manifest) as any);
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult, 0);
+      }
+    });
+
+    it("parses standard YAML frontmatter via validation", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+
+      const skillMdContent =
+        "---\nname: mySkill\ndescription: My great skill\nauthor: test\n---\n# Skill";
+      const readFileStub = sandbox.stub(fs, "readFile");
+      readFileStub.callsFake(async (p: any, _opts?: any) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return skillMdContent as any;
+        }
+        return JSON.stringify(manifest) as any;
+      });
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        chai.assert.lengthOf(res.value.skillValidationResult[0].validationResult, 0);
+      }
+    });
+
+    it("returns empty for content without frontmatter via validation", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+
+      const skillMdContent = "# Just some markdown\nNo frontmatter here";
+      const readFileStub = sandbox.stub(fs, "readFile");
+      readFileStub.callsFake(async (p: any, _opts?: any) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return skillMdContent as any;
+        }
+        return JSON.stringify(manifest) as any;
+      });
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        // Both name and description should be missing
+        chai.assert.lengthOf(res.value.skillValidationResult[0].validationResult, 2);
+        chai.assert.isTrue(
+          res.value.skillValidationResult[0].validationResult.some((r) =>
+            r.includes("missing required field 'name'")
+          )
+        );
+        chai.assert.isTrue(
+          res.value.skillValidationResult[0].validationResult.some((r) =>
+            r.includes("missing required field 'description'")
+          )
+        );
+      }
+    });
+
+    it("returns empty for malformed frontmatter via validation", async () => {
+      const manifest: any = {
+        name: "test-agent",
+        description: "description",
+        "agent_skills": [{ folder: "./skills/mySkill" }],
+      };
+      mockedEnvRestore = mockedEnv({ ["APP_NAME_SUFFIX"]: "test" });
+      sandbox.stub(fs, "pathExists").resolves(true);
+
+      // Frontmatter with opening --- but no closing ---
+      const skillMdContent = "---\nname: mySkill\ndescription: test\n# No closing delimiter";
+      const readFileStub = sandbox.stub(fs, "readFile");
+      readFileStub.callsFake(async (p: any, _opts?: any) => {
+        if (typeof p === "string" && p.includes("SKILL.md")) {
+          return skillMdContent as any;
+        }
+        return JSON.stringify(manifest) as any;
+      });
+      sandbox.stub(ManifestUtil, "validateManifest").resolves([]);
+
+      const res = await copilotGptManifestUtils.validateAgainstSchema(
+        { id: "1", file: "file" },
+        "testPath",
+        driverContext as any
+      );
+
+      chai.assert.isTrue(res.isOk());
+      if (res.isOk()) {
+        // Malformed frontmatter -> both fields missing
+        chai.assert.lengthOf(res.value.skillValidationResult[0].validationResult, 2);
       }
     });
   });

@@ -6,6 +6,7 @@ import {
   DeclarativeAgentManifestConverter,
   AppManifestUtils,
   DeclarativeAgentManifestLatest,
+  AgentSkillElement,
 } from "../generated-types";
 import { BaseManifest } from "./BaseManifest";
 
@@ -18,6 +19,11 @@ type ConversationStarterElementType = NonNullable<
   LatestManifestType["conversation_starters"]
 >[number];
 type WorkerAgentElementType = NonNullable<LatestManifestType["worker_agents"]>[number];
+
+/**
+ * Maximum number of agent skills allowed.
+ */
+const MAX_AGENT_SKILLS = 10;
 
 // Re-export common types for convenience (derived from latest manifest type)
 export type ActionElement = ActionElementType;
@@ -469,6 +475,80 @@ export class DeclarativeAgentManifestWrapper extends BaseManifest<DeclarativeAge
       this.markDirty();
     }
     return this;
+  }
+
+  // ============= Agent Skill Operations =============
+
+  /**
+   * Returns a readonly array of agent skills.
+   */
+  get skills(): readonly AgentSkillElement[] {
+    const data = this._data as Record<string, unknown>;
+    return (data.agent_skills as AgentSkillElement[] | undefined) ?? [];
+  }
+
+  /**
+   * Adds an agent skill to the declarative agent.
+   * Maximum 10 skills are allowed. Duplicate folder paths are ignored.
+   * @param folder - Relative path to the skill directory.
+   * @param exposeSkillToCopilot - Whether the skill is exposed to mainline M365 Copilot. Defaults to false.
+   */
+  addSkill(folder: string, exposeSkillToCopilot?: boolean): this {
+    const data = this._data as Record<string, unknown>;
+    if (!data.agent_skills) {
+      data.agent_skills = [];
+    }
+
+    const skills = data.agent_skills as AgentSkillElement[];
+    if (skills.length >= MAX_AGENT_SKILLS) {
+      console.warn(`Maximum ${MAX_AGENT_SKILLS} agent skills allowed. Ignoring addition.`);
+      return this;
+    }
+
+    if (!skills.some((s) => s.folder === folder)) {
+      const skill: AgentSkillElement = { folder };
+      if (exposeSkillToCopilot !== undefined) {
+        skill.expose_skill_to_copilot = exposeSkillToCopilot;
+      }
+      skills.push(skill);
+      this.markDirty();
+    }
+    return this;
+  }
+
+  /**
+   * Removes an agent skill by folder path.
+   * @param folder - The folder path of the skill to remove.
+   */
+  removeSkill(folder: string): this {
+    const data = this._data as Record<string, unknown>;
+    const skills = data.agent_skills as AgentSkillElement[] | undefined;
+    if (skills) {
+      data.agent_skills = skills.filter((s) => s.folder !== folder);
+      this.markDirty();
+    }
+    return this;
+  }
+
+  /**
+   * Checks if an agent skill exists by folder path.
+   */
+  hasSkill(folder: string): boolean {
+    return this.skills.some((s) => s.folder === folder);
+  }
+
+  /**
+   * Gets an agent skill by folder path.
+   */
+  getSkill(folder: string): AgentSkillElement | undefined {
+    return this.skills.find((s) => s.folder === folder);
+  }
+
+  /**
+   * Returns all skill folder paths.
+   */
+  getSkillFolders(): string[] {
+    return this.skills.map((s) => s.folder);
   }
 
   // ============= Validation =============

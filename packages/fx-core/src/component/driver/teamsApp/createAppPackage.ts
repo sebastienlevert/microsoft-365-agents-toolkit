@@ -381,6 +381,39 @@ export class CreateAppPackageDriver implements StepDriver {
             }
           }
         }
+        // Add agent skill directories
+        const agentSkills = getCopilotGptRes.value.agent_skills;
+        if (agentSkills && Array.isArray(agentSkills)) {
+          for (const skill of agentSkills) {
+            if (skill.folder) {
+              const skillFolderAbsolutePath = path.resolve(
+                path.dirname(declarativeAgentManifestFile),
+                skill.folder
+              );
+              const checkExistenceRes = await this.validateReferencedFile(
+                skillFolderAbsolutePath,
+                appDirectory
+              );
+              if (checkExistenceRes.isErr()) {
+                return err(checkExistenceRes.error);
+              }
+
+              const skillMdPath = path.join(skillFolderAbsolutePath, "SKILL.md");
+              if (!(await fs.pathExists(skillMdPath))) {
+                return err(
+                  new FileNotFoundError(
+                    actionName,
+                    skillMdPath,
+                    "https://aka.ms/teamsfx-actions/teamsapp-zipAppPackage"
+                  )
+                );
+              }
+
+              const skillRelativePath = path.relative(appDirectory, skillFolderAbsolutePath);
+              zip.addLocalFolder(skillFolderAbsolutePath, skillRelativePath);
+            }
+          }
+        }
       } else {
         return err(getCopilotGptRes.error);
       }

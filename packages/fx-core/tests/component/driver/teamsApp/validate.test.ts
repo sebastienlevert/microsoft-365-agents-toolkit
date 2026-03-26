@@ -462,6 +462,7 @@ describe("teamsApp/validateManifest", async () => {
               validationResult: ["error3"],
             },
           ],
+          skillValidationResult: [],
         })
       );
       sinon.stub(copilotGptManifestUtils, "logValidationErrors").returns("errorMessage2");
@@ -520,6 +521,7 @@ describe("teamsApp/validateManifest", async () => {
               validationResult: ["error3"],
             },
           ],
+          skillValidationResult: [],
         })
       );
       sinon.stub(copilotGptManifestUtils, "logValidationErrors").returns("errorMessage2");
@@ -578,6 +580,7 @@ describe("teamsApp/validateManifest", async () => {
               validationResult: ["error3"],
             },
           ],
+          skillValidationResult: [],
         })
       );
       sinon.stub(copilotGptManifestUtils, "logValidationErrors").returns("errorMessage2");
@@ -628,6 +631,7 @@ describe("teamsApp/validateManifest", async () => {
               validationResult: ["error3"],
             },
           ],
+          skillValidationResult: [],
         })
       );
       sinon.stub(copilotGptManifestUtils, "logValidationErrors").returns("errorMessage2");

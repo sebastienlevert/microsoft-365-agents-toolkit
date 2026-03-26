@@ -14,6 +14,7 @@ import * as DeclarativeAgentManifestV1D3 from "./copilot/declarative-agent/Decla
 import * as DeclarativeAgentManifestV1D4 from "./copilot/declarative-agent/DeclarativeAgentManifestV1D4";
 import * as DeclarativeAgentManifestV1D5 from "./copilot/declarative-agent/DeclarativeAgentManifestV1D5";
 import * as DeclarativeAgentManifestV1D6 from "./copilot/declarative-agent/DeclarativeAgentManifestV1D6";
+import * as DeclarativeAgentManifestV1D7 from "./copilot/declarative-agent/DeclarativeAgentManifestV1D7";
 import * as APIPluginManifestV2D1 from "./copilot/plugin/ApiPluginManifestV2D1";
 import * as APIPluginManifestV2D2 from "./copilot/plugin/ApiPluginManifestV2D2";
 import * as APIPluginManifestV2D3 from "./copilot/plugin/ApiPluginManifestV2D3";
@@ -115,6 +116,7 @@ export type TeamsManifest =
 export type TeamsManifestLatest = TeamsManifestV1D25.TeamsManifestV1D25;
 
 export { SensitivityLabel } from "./copilot/declarative-agent/DeclarativeAgentManifestV1D6";
+export { AgentSkillElement } from "./copilot/declarative-agent/DeclarativeAgentManifestV1D7";
 
 export type DeclarativeAgentManifest =
   | DeclarativeAgentManifestV1D0.DeclarativeAgentManifestV1D0
@@ -122,10 +124,11 @@ export type DeclarativeAgentManifest =
   | DeclarativeAgentManifestV1D3.DeclarativeAgentManifestV1D3
   | DeclarativeAgentManifestV1D4.DeclarativeAgentManifestV1D4
   | DeclarativeAgentManifestV1D5.DeclarativeAgentManifestV1D5
-  | DeclarativeAgentManifestV1D6.DeclarativeAgentManifestV1D6;
+  | DeclarativeAgentManifestV1D6.DeclarativeAgentManifestV1D6
+  | DeclarativeAgentManifestV1D7.DeclarativeAgentManifestV1D7;
 
 export type DeclarativeAgentManifestLatest =
-  DeclarativeAgentManifestV1D6.DeclarativeAgentManifestV1D6;
+  DeclarativeAgentManifestV1D7.DeclarativeAgentManifestV1D7;
 
 export type APIPluginManifest =
   | APIPluginManifestV2D1.APIPluginManifestV2D1
@@ -257,6 +260,18 @@ const daConverterMap: Converters = {
   "v1.4": [
     DeclarativeAgentManifestV1D4.Convert.toDeclarativeAgentManifestV1D4,
     DeclarativeAgentManifestV1D4.Convert.declarativeAgentManifestV1D4ToJson,
+  ],
+  "v1.5": [
+    DeclarativeAgentManifestV1D5.Convert.toDeclarativeAgentManifestV1D5,
+    DeclarativeAgentManifestV1D5.Convert.declarativeAgentManifestV1D5ToJson,
+  ],
+  "v1.6": [
+    DeclarativeAgentManifestV1D6.Convert.toDeclarativeAgentManifestV1D6,
+    DeclarativeAgentManifestV1D6.Convert.declarativeAgentManifestV1D6ToJson,
+  ],
+  "v1.7": [
+    DeclarativeAgentManifestV1D7.Convert.toDeclarativeAgentManifestV1D7,
+    DeclarativeAgentManifestV1D7.Convert.declarativeAgentManifestV1D7ToJson,
   ],
 };
 const ApiPluginConverterMap: Converters = {

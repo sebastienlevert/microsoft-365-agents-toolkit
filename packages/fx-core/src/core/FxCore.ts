@@ -2526,6 +2526,159 @@ export class FxCore extends FxCoreDeclarativeAgentPart {
   }
 
   /**
+   * Add Skill
+   */
+  @hooks([
+    ErrorContextMW({ component: "FxCore", stage: Stage.addSkill }),
+    ErrorHandlerMW,
+    QuestionMW("addSkill"),
+    ConcurrentLockerMW,
+  ])
+  async addSkill(inputs: Inputs): Promise<Result<undefined | any, FxError>> {
+    if (!inputs.projectPath) {
+      throw new Error("projectPath is undefined"); // should never happen
+    }
+
+    const context = createContext();
+    const teamsManifestPath = inputs[QuestionNames.ManifestPath];
+    const appPackageFolder = path.dirname(teamsManifestPath);
+
+    // Validate the project is valid for adding a skill
+    const manifestRes = await manifestUtils._readAppManifest(teamsManifestPath);
+    if (manifestRes.isErr()) {
+      return err(manifestRes.error);
+    }
+
+    const teamsManifest = manifestRes.value;
+    const agent = teamsManifest.copilotExtensions
+      ? teamsManifest.copilotExtensions.declarativeCopilots?.[0]
+      : teamsManifest.copilotAgents?.declarativeAgents?.[0];
+    if (!agent?.file) {
+      return err(
+        AppStudioResultFactory.UserError(
+          AppStudioError.TeamsAppRequiredPropertyMissingError.name,
+          AppStudioError.TeamsAppRequiredPropertyMissingError.message(
+            "declarativeAgents",
+            teamsManifestPath
+          )
+        )
+      );
+    }
+    const agentFilePathRes = await copilotGptManifestUtils.getManifestPath(teamsManifestPath);
+    if (agentFilePathRes.isErr()) {
+      return err(agentFilePathRes.error);
+    }
+
+    const agentManifestPath = agentFilePathRes.value;
+
+    // User confirm before adding skill
+    const confirmMessage = getLocalizedString(
+      "core.addSkill.confirm",
+      path.relative(inputs.projectPath, appPackageFolder)
+    );
+    const confirmRes = await context.userInteraction.showMessage(
+      "warn",
+      confirmMessage,
+      true,
+      getLocalizedString("core.addSkill.continue")
+    );
+
+    if (confirmRes.isErr()) {
+      return err(confirmRes.error);
+    } else if (confirmRes.value !== getLocalizedString("core.addSkill.continue")) {
+      return err(new UserCancelError());
+    }
+
+    const skillName = inputs[QuestionNames.SkillName] as string;
+    const skillDescription = inputs[QuestionNames.SkillDescription] as string;
+    const exposeSkillToCopilot = inputs[QuestionNames.SkillExposeTocopilot] === true;
+    const skillFrom = inputs[QuestionNames.SkillFrom] as string | undefined;
+
+    let skillFolder: string;
+    if (skillFrom) {
+      // Existing skill mode: validate it's within appPackage
+      const skillAbsPath = path.resolve(appPackageFolder, skillFrom);
+      const relativePath = path.relative(appPackageFolder, skillAbsPath);
+      if (relativePath.startsWith("..")) {
+        return err(
+          new UserError(
+            "FxCore",
+            "SkillOutsideAppPackage",
+            "The skill directory must be within the app package folder."
+          )
+        );
+      }
+
+      // Validate SKILL.md exists
+      const skillMdPath = path.join(skillAbsPath, "SKILL.md");
+      if (!(await fs.pathExists(skillMdPath))) {
+        return err(
+          new UserError(
+            "FxCore",
+            "SkillMdNotFound",
+            `SKILL.md not found in ${skillAbsPath}. Each skill directory must contain a SKILL.md file.`
+          )
+        );
+      }
+
+      skillFolder = normalizePath(
+        path.relative(path.dirname(agentManifestPath), skillAbsPath),
+        true
+      );
+    } else {
+      // New skill mode: create the directory and SKILL.md
+      const skillDir = path.join(appPackageFolder, "skills", skillName);
+      await fs.ensureDir(skillDir);
+
+      const skillMdContent = [
+        "---",
+        `name: ${skillName}`,
+        `description: ${skillDescription}`,
+        "---",
+        `# ${skillName}`,
+        "",
+        "<!-- Add your skill instructions here -->",
+        "<!-- The agent will follow these instructions when this skill is activated -->",
+        "",
+      ].join("\n");
+      await fs.writeFile(path.join(skillDir, "SKILL.md"), skillMdContent);
+
+      skillFolder = normalizePath(
+        path.relative(path.dirname(agentManifestPath), skillDir),
+        true
+      );
+    }
+
+    // Add skill entry to DA manifest
+    const addSkillRes = await copilotGptManifestUtils.addSkill(
+      agentManifestPath,
+      skillFolder,
+      exposeSkillToCopilot
+    );
+    if (addSkillRes.isErr()) {
+      return err(addSkillRes.error);
+    }
+
+    // Show success message
+    if (inputs.platform === Platform.VSCode) {
+      const successMessage = getLocalizedString("core.addSkill.success.vsc");
+      const viewAgentManifest = getLocalizedString("core.addSkill.success.viewAgentManifest");
+      void context.userInteraction
+        .showMessage("info", successMessage, false, viewAgentManifest)
+        .then((userRes) => {
+          if (userRes.isOk() && userRes.value === viewAgentManifest) {
+            void TOOLS?.ui?.openFile?.(agentManifestPath);
+          }
+        });
+    } else {
+      const successMessage = getLocalizedString("core.addSkill.success", agentManifestPath);
+      void context.userInteraction.showMessage("info", successMessage, false);
+    }
+
+    return ok(undefined);
+  }
+
+  /**
    * only for vs code extension
    */
   @hooks([

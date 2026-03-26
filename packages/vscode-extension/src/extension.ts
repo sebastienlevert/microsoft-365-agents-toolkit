@@ -116,6 +116,7 @@ import {
   addAuthActionHandler,
   addKnowledgeHandler,
   addPluginHandler,
+  addSkillHandler,
   addWebpartHandler,
   copilotPluginAddAPIHandler,
   createNewProjectHandler,
@@ -649,6 +650,12 @@ function registerTreeViewCommandsInDevelopment(context: vscode.ExtensionContext)
     "fx-extension.addKnowledge",
     addKnowledgeHandler,
     "addKnowledge"
+  );
+  registerInCommandController(
+    context,
+    "fx-extension.addSkill",
+    addSkillHandler,
+    "addSkill"
   );
 }
 

@@ -6,9 +6,10 @@ import { addSPFxWebpartCommand } from "./addSPFxWebpart";
 import { addPluginCommand } from "./addPlugin";
 import { addAuthConfigCommand } from "./addAuthConfig";
 import { addCapabilityCommand } from "./addCapability";
+import { addSkillCommand } from "./addSkill";
 
 const adjustCommands = (): CLICommand[] => {
-  return [addSPFxWebpartCommand, addPluginCommand, addAuthConfigCommand, addCapabilityCommand];
+  return [addSPFxWebpartCommand, addPluginCommand, addAuthConfigCommand, addCapabilityCommand, addSkillCommand];
 };
 export function addCommand(): CLICommand {
   return {

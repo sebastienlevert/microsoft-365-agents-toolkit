@@ -1574,6 +1574,60 @@ export function selectDeclarativeAgentManifestQuestion(): SingleFileQuestion {
   };
 }
 
+// add Skill to a declarative agent project
+export function addSkillQuestionNode(): IQTreeNode {
+  return {
+    data: skillNameQuestion(),
+    children: [
+      {
+        data: skillDescriptionQuestion(),
+      },
+      {
+        data: skillExposeTocopilotQuestion(),
+      },
+      {
+        data: selectTeamsAppManifestQuestion(),
+      },
+    ],
+  };
+}
+
+function skillNameQuestion(): TextInputQuestion {
+  return {
+    type: "text",
+    name: QuestionNames.SkillName,
+    title: getLocalizedString("core.addSkillQuestion.name.title"),
+    placeholder: getLocalizedString("core.addSkillQuestion.name.placeholder"),
+    validation: {
+      validFunc: (input: string): string | undefined => {
+        const pattern = /^[a-z][a-z0-9-]*$/;
+        if (!pattern.test(input)) {
+          return getLocalizedString("core.addSkillQuestion.name.validation");
+        }
+        return undefined;
+      },
+    },
+  };
+}
+
+function skillDescriptionQuestion(): TextInputQuestion {
+  return {
+    type: "text",
+    name: QuestionNames.SkillDescription,
+    title: getLocalizedString("core.addSkillQuestion.description.title"),
+    placeholder: getLocalizedString("core.addSkillQuestion.description.placeholder"),
+  };
+}
+
+function skillExposeTocopilotQuestion(): ConfirmQuestion {
+  return {
+    type: "confirm",
+    name: QuestionNames.SkillExposeTocopilot,
+    title: getLocalizedString("core.addSkillQuestion.expose.title"),
+    default: false,
+  };
+}
+
 export function SelectSensitivityLabelQuestion(): SingleSelectQuestion {
   return {
     name: QuestionNames.SensitivityLabel,
