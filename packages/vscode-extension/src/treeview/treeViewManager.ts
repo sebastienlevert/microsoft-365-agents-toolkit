@@ -277,7 +277,7 @@ class TreeViewManager {
               localize("teamstoolkit.commandsTreeViewProvider.addSkillDescription"),
               "fx-extension.addSkill",
               "addSkill",
-              { name: "teamsfx-add-feature", custom: false }
+              { name: "lightbulb", custom: false }
             ),
           ]
         : []),
