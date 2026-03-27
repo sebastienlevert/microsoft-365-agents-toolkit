@@ -375,4 +375,132 @@ describe("addSkill", () => {
       assert.equal(result.error.name, "UserCancel");
     }
   });
+
+  it("works with copilotExtensions manifest format", async () => {
+    const inputs = createBaseInputs();
+    const manifest = new TeamsAppManifest();
+    manifest.copilotExtensions = {
+      declarativeCopilots: [
+        {
+          id: "agent_1",
+          file: "declarativeAgent.json",
+        },
+      ],
+    };
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve("test-project", "appPackage", "declarativeAgent.json")));
+
+    sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+    sandbox.stub(fs, "ensureDir").resolves();
+    sandbox.stub(fs, "writeFile").resolves();
+
+    sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+      ok({
+        name: "test-agent",
+        description: "description",
+      } as DeclarativeCopilotManifestSchema)
+    );
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isOk());
+  });
+
+  it("existing skill: errors when skill is outside appPackage", async () => {
+    const appPackageFolder = path.resolve("test-project", "appPackage");
+    const inputs = createBaseInputs({
+      [QuestionNames.SkillFrom]: "../../outside-folder",
+    });
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+    sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isErr());
+    if (result.isErr()) {
+      assert.equal(result.error.name, "SkillOutsideAppPackage");
+    }
+  });
+
+  it("existing skill: succeeds when SKILL.md has no name frontmatter", async () => {
+    const appPackageFolder = path.resolve("test-project", "appPackage");
+    const inputs = createBaseInputs({
+      [QuestionNames.SkillFrom]: "skills/mySkill",
+    });
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+    sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+    sandbox.stub(fs, "pathExists").resolves(true);
+    // SKILL.md without name in frontmatter
+    sandbox.stub(fs, "readFile").resolves("# Just a markdown file\nNo frontmatter here.\n" as any);
+
+    const addSkillStub = sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+      ok({
+        name: "test-agent",
+        description: "description",
+      } as DeclarativeCopilotManifestSchema)
+    );
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isOk());
+    assert.isTrue(addSkillStub.calledOnce);
+  });
+
+  it("errors when showMessage returns error", async () => {
+    const inputs = createBaseInputs();
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve("test-project", "appPackage", "declarativeAgent.json")));
+
+    sandbox
+      .stub(MockUserInteraction.prototype, "showMessage")
+      .resolves(err(new UserError("test", "ShowMessageError", "Dialog error")));
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isErr());
+    if (result.isErr()) {
+      assert.equal(result.error.name, "ShowMessageError");
+    }
+  });
+
+  it("errors when DA has copilotAgents but no file property", async () => {
+    const inputs = createBaseInputs();
+    const manifest = new TeamsAppManifest();
+    manifest.copilotAgents = {
+      declarativeAgents: [
+        {
+          id: "agent_1",
+          file: "",
+        },
+      ],
+    };
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isErr());
+  });
 });
