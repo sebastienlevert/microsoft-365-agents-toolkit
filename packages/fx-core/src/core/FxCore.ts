@@ -2608,6 +2608,19 @@ export class FxCore extends FxCoreDeclarativeAgentPart {
         );
       }
 
+      // Validate folder name format
+      const folderName = path.basename(skillAbsPath);
+      const namePattern = /^[a-zA-Z][a-zA-Z0-9-]*$/;
+      if (!namePattern.test(folderName)) {
+        return err(
+          new UserError(
+            "FxCore",
+            "InvalidSkillFolderName",
+            `Skill folder name "${folderName}" is invalid. It must start with a letter and contain only letters, numbers, and hyphens.`
+          )
+        );
+      }
+
       // Validate SKILL.md exists
       const skillMdPath = path.join(skillAbsPath, "SKILL.md");
       if (!(await fs.pathExists(skillMdPath))) {
@@ -2618,6 +2631,22 @@ export class FxCore extends FxCoreDeclarativeAgentPart {
             `SKILL.md not found in ${skillAbsPath}. Each skill directory must contain a SKILL.md file.`
           )
         );
+      }
+
+      // Validate skill name in SKILL.md matches folder name
+      const skillMdContent = await fs.readFile(skillMdPath, "utf-8");
+      const nameMatch = skillMdContent.match(/^---[\s\S]*?^name:\s*(.+)$/m);
+      if (nameMatch) {
+        const skillMdName = nameMatch[1].trim();
+        if (skillMdName !== folderName) {
+          return err(
+            new UserError(
+              "FxCore",
+              "SkillNameMismatch",
+              `Skill name "${skillMdName}" in SKILL.md does not match folder name "${folderName}". They must be the same.`
+            )
+          );
+        }
       }
 
       skillFolder = normalizePath(

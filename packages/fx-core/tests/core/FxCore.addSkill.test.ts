@@ -115,6 +115,7 @@ describe("addSkill", () => {
 
     sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
     sandbox.stub(fs, "pathExists").resolves(true);
+    sandbox.stub(fs, "readFile").resolves("---\nname: existingSkill\ndescription: A skill\n---\n# existingSkill\n" as any);
 
     const addSkillStub = sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
       ok({
@@ -128,6 +129,52 @@ describe("addSkill", () => {
 
     assert.isTrue(result.isOk());
     assert.isTrue(addSkillStub.calledOnce);
+  });
+
+  it("existing skill: errors when folder name has invalid characters", async () => {
+    const appPackageFolder = path.resolve("test-project", "appPackage");
+    const inputs = createBaseInputs({
+      [QuestionNames.SkillFrom]: "skills/my.skill",
+    });
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+    sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isErr());
+    if (result.isErr()) {
+      assert.equal(result.error.name, "InvalidSkillFolderName");
+    }
+  });
+
+  it("existing skill: errors when SKILL.md name doesn't match folder name", async () => {
+    const appPackageFolder = path.resolve("test-project", "appPackage");
+    const inputs = createBaseInputs({
+      [QuestionNames.SkillFrom]: "skills/mySkill",
+    });
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+    sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+    sandbox.stub(fs, "pathExists").resolves(true);
+    sandbox.stub(fs, "readFile").resolves("---\nname: differentName\ndescription: A skill\n---\n" as any);
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isErr());
+    if (result.isErr()) {
+      assert.equal(result.error.name, "SkillNameMismatch");
+    }
   });
 
   it("updates DA manifest with agent_skills entry", async () => {
