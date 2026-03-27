@@ -31,6 +31,7 @@ export type ConversationStarterElement = ConversationStarterElementType;
 export type WorkerAgentElement = WorkerAgentElementType;
 export type SensitivityLabel = LatestManifestType["sensitivity_label"];
 export type BehaviorOverrides = LatestManifestType["behavior_overrides"];
+export type { AgentSkillElement };
 
 /**
  * Capability name type derived from the latest manifest schema.
