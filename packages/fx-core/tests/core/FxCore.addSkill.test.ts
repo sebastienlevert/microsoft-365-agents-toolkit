@@ -16,7 +16,7 @@ import "mocha";
 import * as path from "path";
 import sinon from "sinon";
 import { FxCore } from "../../src/core/FxCore";
-import { setTools } from "../../src/common/globalVars";
+import { setTools, TOOLS } from "../../src/common/globalVars";
 import { copilotGptManifestUtils } from "../../src/component/driver/teamsApp/utils/CopilotGptManifestUtils";
 import { manifestUtils } from "../../src/component/driver/teamsApp/utils/ManifestUtils";
 import { UserCancelError } from "../../src/error/common";
@@ -502,5 +502,72 @@ describe("addSkill", () => {
     const result = await core.addSkill(inputs);
 
     assert.isTrue(result.isErr());
+  });
+
+  it("VSCode: opens agent manifest when user clicks View button", async () => {
+    const inputs = createBaseInputs();
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve("test-project", "appPackage", "declarativeAgent.json")));
+
+    // First call: confirmation dialog returns "Add"
+    // Second call: success message returns "View agent manifest" button
+    const showMessageStub = sandbox.stub(MockUserInteraction.prototype, "showMessage");
+    showMessageStub.onFirstCall().resolves(ok("Add"));
+    showMessageStub.onSecondCall().resolves(ok("View agent manifest"));
+
+    sandbox.stub(fs, "ensureDir").resolves();
+    sandbox.stub(fs, "writeFile").resolves();
+
+    sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+      ok({
+        name: "test-agent",
+        description: "description",
+      } as DeclarativeCopilotManifestSchema)
+    );
+
+    const openFileStub = sandbox.stub(tools.ui, "openFile").resolves(ok(true));
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isOk());
+    // Wait for fire-and-forget .then() to resolve
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.isTrue(openFileStub.calledOnce);
+  });
+
+  it("CLI platform: shows success message without View button", async () => {
+    const inputs = createBaseInputs({ platform: Platform.CLI });
+    const manifest = createManifestWithDA();
+
+    sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+    sandbox
+      .stub(copilotGptManifestUtils, "getManifestPath")
+      .resolves(ok(path.resolve("test-project", "appPackage", "declarativeAgent.json")));
+
+    const showMessageStub = sandbox.stub(MockUserInteraction.prototype, "showMessage");
+    showMessageStub.onFirstCall().resolves(ok("Add"));
+    showMessageStub.onSecondCall().resolves(ok(undefined));
+
+    sandbox.stub(fs, "ensureDir").resolves();
+    sandbox.stub(fs, "writeFile").resolves();
+
+    sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+      ok({
+        name: "test-agent",
+        description: "description",
+      } as DeclarativeCopilotManifestSchema)
+    );
+
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isOk());
+    // Second showMessage should be "info" for CLI, no "View agent manifest" button
+    assert.isTrue(showMessageStub.secondCall.args[0] === "info");
   });
 });

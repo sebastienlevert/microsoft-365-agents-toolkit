@@ -713,6 +713,36 @@ describe("copilotGptManifestUtils", () => {
       chai.assert.isEmpty(res);
     });
 
+    it("handles undefined skillValidationResult in VSC", () => {
+      const validationRes = {
+        id: "1",
+        filePath: "testPath",
+        validationResult: ["error1"],
+        actionValidationResult: [],
+      } as unknown as DeclarativeCopilotManifestValidationResult;
+
+      const res = copilotGptManifestUtils.logValidationErrors(
+        validationRes,
+        Platform.VSCode
+      ) as string;
+      chai.assert.isTrue(res.includes("error1"));
+    });
+
+    it("handles undefined skillValidationResult in CLI", () => {
+      const validationRes = {
+        id: "1",
+        filePath: "testPath",
+        validationResult: ["error1"],
+        actionValidationResult: [],
+      } as unknown as DeclarativeCopilotManifestValidationResult;
+
+      const res = copilotGptManifestUtils.logValidationErrors(
+        validationRes,
+        Platform.CLI
+      ) as Array<{ content: string; color: Colors }>;
+      chai.assert.isTrue(res.find((item) => item.content.includes("error1")) !== undefined);
+    });
+
     it("log if VSC", () => {
       const validationRes: DeclarativeCopilotManifestValidationResult = {
         id: "1",
