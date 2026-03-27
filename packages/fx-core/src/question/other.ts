@@ -1599,10 +1599,21 @@ function skillNameQuestion(): TextInputQuestion {
     title: getLocalizedString("core.addSkillQuestion.name.title"),
     placeholder: getLocalizedString("core.addSkillQuestion.name.placeholder"),
     validation: {
-      validFunc: (input: string): string | undefined => {
-        const pattern = /^[a-z][a-z0-9-]*$/;
+      validFunc: (input: string, inputs?: Inputs): string | undefined => {
+        const pattern = /^[a-zA-Z][a-zA-Z0-9-]*$/;
         if (!pattern.test(input)) {
           return getLocalizedString("core.addSkillQuestion.name.validation");
+        }
+        // Check for duplicate skill name
+        if (inputs?.projectPath) {
+          const manifestPath =
+            inputs[QuestionNames.ManifestPath] ||
+            path.join(inputs.projectPath, AppPackageFolderName, "manifest.json");
+          const appPackageFolder = path.dirname(manifestPath);
+          const skillDir = path.join(appPackageFolder, "skills", input);
+          if (fs.pathExistsSync(skillDir)) {
+            return getLocalizedString("core.addSkillQuestion.name.duplicate", input);
+          }
         }
         return undefined;
       },

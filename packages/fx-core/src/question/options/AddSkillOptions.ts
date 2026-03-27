@@ -5,26 +5,30 @@ import { CLICommandOption, CLICommandArgument } from "@microsoft/teamsfx-api";
 
 export const AddSkillOptions: CLICommandOption[] = [
   {
-    name: "skill-name",
+    name: "name",
+    questionName: "skill-name",
     type: "string",
-    description: "Name of the skill (lowercase, hyphens only).",
+    description: "Name of the skill (letters, numbers, and hyphens only).",
     required: true,
   },
   {
-    name: "skill-description",
+    name: "description",
+    questionName: "skill-description",
     type: "string",
     description: "Description of what the skill does.",
     required: true,
   },
   {
-    name: "skill-expose-to-copilot",
+    name: "expose-to-copilot",
+    questionName: "skill-expose-to-copilot",
     type: "string",
     description: "Whether to expose the skill to mainline M365 Copilot (yes/no).",
     required: false,
     default: "no",
   },
   {
-    name: "skill-from",
+    name: "from",
+    questionName: "skill-from",
     type: "string",
     description: "Path to an existing skill directory within appPackage.",
     required: false,
