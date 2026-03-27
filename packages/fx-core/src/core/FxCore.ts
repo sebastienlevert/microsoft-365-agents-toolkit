@@ -2571,6 +2571,23 @@ export class FxCore extends FxCoreDeclarativeAgentPart {
 
     const agentManifestPath = agentFilePathRes.value;
 
+    // Confirm before modifying files (matches addPlugin pattern)
+    const confirmMessage = getLocalizedString(
+      "core.addSkill.confirm",
+      path.relative(inputs.projectPath, appPackageFolder)
+    );
+    const confirmRes = await context.userInteraction.showMessage(
+      "warn",
+      confirmMessage,
+      true,
+      getLocalizedString("core.addSkill.continue")
+    );
+    if (confirmRes.isErr()) {
+      return err(confirmRes.error);
+    } else if (confirmRes.value !== getLocalizedString("core.addSkill.continue")) {
+      return err(new UserCancelError());
+    }
+
     const skillName = inputs[QuestionNames.SkillName] as string;
     const skillDescription = inputs[QuestionNames.SkillDescription] as string;
     const exposeSkillToCopilot = inputs[QuestionNames.SkillExposeTocopilot] === "yes";
