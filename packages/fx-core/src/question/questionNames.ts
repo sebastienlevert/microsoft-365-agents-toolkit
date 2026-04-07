@@ -163,4 +163,6 @@ export enum QuestionNames {
   SkillDescription = "skill-description",
   SkillExposeTocopilot = "skill-expose-to-copilot",
   SkillFrom = "skill-from",
+  SkillSourceType = "skill-source-type",
+  SkillFromZipFile = "skill-from-zip-file",
 }

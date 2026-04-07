@@ -31,7 +31,8 @@ export const AddSkillOptions: CLICommandOption[] = [
     name: "from",
     questionName: "skill-from",
     type: "string",
-    description: "Path to an existing skill directory within appPackage.",
+    description:
+      "Path to an existing skill directory within appPackage, or path to a .zip file containing a skill.",
     required: false,
   },
   {

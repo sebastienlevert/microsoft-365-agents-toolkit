@@ -1580,12 +1580,24 @@ export function addSkillQuestionNode(): IQTreeNode {
     data: { type: "group" },
     children: [
       {
+        data: skillSourceTypeQuestion(),
+        condition: (inputs: Inputs) =>
+          !inputs[QuestionNames.SkillFrom] && inputs.platform !== Platform.CLI,
+      },
+      {
+        data: skillFromZipFileQuestion(),
+        condition: (inputs: Inputs) =>
+          !inputs[QuestionNames.SkillFrom] && inputs[QuestionNames.SkillSourceType] === "existing",
+      },
+      {
         data: skillNameQuestion(),
-        condition: (inputs: Inputs) => !inputs[QuestionNames.SkillFrom],
+        condition: (inputs: Inputs) =>
+          !inputs[QuestionNames.SkillFrom] && inputs[QuestionNames.SkillSourceType] !== "existing",
       },
       {
         data: skillDescriptionQuestion(),
-        condition: (inputs: Inputs) => !inputs[QuestionNames.SkillFrom],
+        condition: (inputs: Inputs) =>
+          !inputs[QuestionNames.SkillFrom] && inputs[QuestionNames.SkillSourceType] !== "existing",
       },
       {
         data: skillExposeTocopilotQuestion(),
@@ -1651,6 +1663,39 @@ function skillExposeTocopilotQuestion(): SingleSelectQuestion {
       },
     ],
     default: "no",
+  };
+}
+
+function skillSourceTypeQuestion(): SingleSelectQuestion {
+  return {
+    name: QuestionNames.SkillSourceType,
+    title: getLocalizedString("core.addSkillQuestion.sourceType.title"),
+    type: "singleSelect",
+    staticOptions: [
+      {
+        id: "new",
+        label: getLocalizedString("core.addSkillQuestion.sourceType.new"),
+        detail: getLocalizedString("core.addSkillQuestion.sourceType.newDetail"),
+      },
+      {
+        id: "existing",
+        label: getLocalizedString("core.addSkillQuestion.sourceType.existing"),
+        detail: getLocalizedString("core.addSkillQuestion.sourceType.existingDetail"),
+      },
+    ],
+    default: "new",
+  };
+}
+
+function skillFromZipFileQuestion(): SingleFileQuestion {
+  return {
+    name: QuestionNames.SkillFromZipFile,
+    title: getLocalizedString("core.addSkillQuestion.zipFile.title"),
+    placeholder: getLocalizedString("core.addSkillQuestion.zipFile.placeholder"),
+    type: "singleFile",
+    filters: {
+      "Zip files": ["zip"],
+    },
   };
 }
 

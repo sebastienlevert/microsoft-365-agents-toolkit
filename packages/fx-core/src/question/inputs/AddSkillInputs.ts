@@ -8,5 +8,7 @@ export interface AddSkillInputs extends Inputs {
   "skill-description"?: string;
   "skill-expose-to-copilot"?: string;
   "skill-from"?: string;
+  "skill-source-type"?: string;
+  "skill-from-zip-file"?: string;
   "manifest-path"?: string;
 }

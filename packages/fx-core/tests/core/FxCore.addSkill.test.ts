@@ -570,4 +570,365 @@ describe("addSkill", () => {
     // Second showMessage should be "info" for CLI, no "View agent manifest" button
     assert.isTrue(showMessageStub.secondCall.args[0] === "info");
   });
+
+  describe("zip import", () => {
+    let AdmZipModule: typeof import("adm-zip");
+
+    before(async () => {
+      AdmZipModule = (await import("adm-zip")).default;
+    });
+
+    function createZipWithSingleFolder(
+      folderName: string,
+      skillMdContent: string,
+      extraFiles?: { name: string; content: string }[]
+    ): Buffer {
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile(`${folderName}/SKILL.md`, Buffer.from(skillMdContent, "utf-8"));
+      if (extraFiles) {
+        for (const f of extraFiles) {
+          zip.addFile(`${folderName}/${f.name}`, Buffer.from(f.content, "utf-8"));
+        }
+      }
+      return zip.toBuffer();
+    }
+
+    function createZipWithRootFiles(
+      skillMdContent: string,
+      extraFiles?: { name: string; content: string }[]
+    ): Buffer {
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile("SKILL.md", Buffer.from(skillMdContent, "utf-8"));
+      if (extraFiles) {
+        for (const f of extraFiles) {
+          zip.addFile(f.name, Buffer.from(f.content, "utf-8"));
+        }
+      }
+      return zip.toBuffer();
+    }
+
+    function createZipInputs(zipPath: string): Inputs {
+      return createBaseInputs({
+        [QuestionNames.SkillFrom]: zipPath,
+      });
+    }
+
+    it("successfully imports skill from single-folder zip via --from", async () => {
+      const skillMd =
+        "---\nname: myImportedSkill\ndescription: An imported skill\n---\n# myImportedSkill\n";
+      const zipBuffer = createZipWithSingleFolder("myImportedSkill", skillMd);
+      const zipPath = path.resolve("test-skill.zip");
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      const inputs = createZipInputs(zipPath);
+      const manifest = createManifestWithDA();
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      // Mock fs operations for zip import
+      const pathExistsStub = sandbox.stub(fs, "pathExists");
+      pathExistsStub.withArgs(zipPath).resolves(true);
+      pathExistsStub
+        .withArgs(path.join(appPackageFolder, "skills", "myImportedSkill"))
+        .resolves(false);
+      pathExistsStub.callsFake(async (p: string) => {
+        if (p === zipPath) return true;
+        if (p.includes("myImportedSkill") && p.includes("skills")) return false;
+        if (p.includes("SKILL.md")) return true;
+        return false;
+      });
+
+      // Stub AdmZip constructor
+      const AdmZip = require("adm-zip");
+      const fakeZip = new AdmZip(zipBuffer);
+      sandbox
+        .stub(FxCore.prototype as any, "importSkillFromZip")
+        .callsFake(async function (this: any, ...args: unknown[]) {
+          // Return a successful result mimicking the zip import
+          return ok("skills/myImportedSkill");
+        });
+
+      sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+        ok({
+          name: "test-agent",
+          description: "description",
+        } as DeclarativeCopilotManifestSchema)
+      );
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      assert.isTrue(result.isOk());
+    });
+
+    it("successfully imports skill from zip via skill-from-zip-file input", async () => {
+      const zipPath = path.resolve("test-skill.zip");
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      const inputs = createBaseInputs({
+        [QuestionNames.SkillFromZipFile]: zipPath,
+      });
+      const manifest = createManifestWithDA();
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      sandbox.stub(FxCore.prototype as any, "importSkillFromZip").callsFake(async function () {
+        return ok("skills/myImportedSkill");
+      });
+
+      sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+        ok({
+          name: "test-agent",
+          description: "description",
+        } as DeclarativeCopilotManifestSchema)
+      );
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      assert.isTrue(result.isOk());
+    });
+
+    it("errors when zip file does not exist", async () => {
+      const zipPath = path.resolve("nonexistent.zip");
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      const inputs = createZipInputs(zipPath);
+      const manifest = createManifestWithDA();
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+      sandbox.stub(fs, "pathExists").resolves(false);
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      assert.isTrue(result.isErr());
+      if (result.isErr()) {
+        assert.equal(result.error.name, "ZipFileNotFound");
+      }
+    });
+
+    it("errors when zip contains path traversal entries", async () => {
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile("../../../etc/passwd", Buffer.from("malicious", "utf-8"));
+      const zipBuffer = zip.toBuffer();
+      const zipPath = path.resolve("malicious.zip");
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      const inputs = createZipInputs(zipPath);
+      const manifest = createManifestWithDA();
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      const pathExistsStub = sandbox.stub(fs, "pathExists");
+      pathExistsStub.withArgs(zipPath).resolves(true);
+
+      // Use real AdmZip but mock the file system
+      const origAdmZip = require("adm-zip");
+      const stubbedZip = new origAdmZip(zipBuffer);
+
+      // We need to test the actual importSkillFromZip method
+      // Write zip to a temp location for real test
+      const tempZipPath = path.join(require("os").tmpdir(), `test-traversal-${Date.now()}.zip`);
+      zip.writeZip(tempZipPath);
+      const traversalInputs = createZipInputs(tempZipPath);
+
+      sandbox.restore();
+      setTools(tools);
+      sandbox.stub(validationUtils, "validateInputs").resolves(undefined);
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(traversalInputs);
+
+      // Clean up
+      await fs.remove(tempZipPath).catch(() => {});
+
+      assert.isTrue(result.isErr());
+      if (result.isErr()) {
+        assert.equal(result.error.name, "ZipInvalidEntries");
+      }
+    });
+
+    it("errors when zip has no SKILL.md (root-level layout)", async () => {
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile("readme.txt", Buffer.from("no skill md here", "utf-8"));
+      const zipBuffer = zip.toBuffer();
+
+      const tempZipPath = path.join(require("os").tmpdir(), `test-noskillmd-${Date.now()}.zip`);
+      zip.writeZip(tempZipPath);
+
+      const inputs = createZipInputs(tempZipPath);
+      const manifest = createManifestWithDA();
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      await fs.remove(tempZipPath).catch(() => {});
+
+      assert.isTrue(result.isErr());
+      if (result.isErr()) {
+        assert.equal(result.error.name, "ZipNoSkillMd");
+      }
+    });
+
+    it("errors when target skill folder already exists", async () => {
+      const skillMd = "---\nname: existingSkill\ndescription: A skill\n---\n# existingSkill\n";
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile("existingSkill/SKILL.md", Buffer.from(skillMd, "utf-8"));
+      const tempZipPath = path.join(require("os").tmpdir(), `test-existing-${Date.now()}.zip`);
+      zip.writeZip(tempZipPath);
+
+      const inputs = createZipInputs(tempZipPath);
+      const manifest = createManifestWithDA();
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      // Target folder already exists
+      const origPathExists = fs.pathExists;
+      sandbox.stub(fs, "pathExists").callsFake(async (p: string) => {
+        if (p === tempZipPath) return true;
+        if (
+          p === path.join(appPackageFolder, "skills", "existingSkill") ||
+          p.endsWith(path.join("skills", "existingSkill"))
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      await fs.remove(tempZipPath).catch(() => {});
+
+      assert.isTrue(result.isErr());
+      if (result.isErr()) {
+        assert.equal(result.error.name, "SkillFolderAlreadyExists");
+      }
+    });
+
+    it("successfully imports single-folder zip end-to-end", async () => {
+      const skillMd = "---\nname: myNewSkill\ndescription: A new skill\n---\n# myNewSkill\n";
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile("myNewSkill/SKILL.md", Buffer.from(skillMd, "utf-8"));
+      zip.addFile("myNewSkill/extra.txt", Buffer.from("extra content", "utf-8"));
+
+      const tempZipPath = path.join(require("os").tmpdir(), `test-e2e-${Date.now()}.zip`);
+      zip.writeZip(tempZipPath);
+
+      const inputs = createZipInputs(tempZipPath);
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+      const manifest = createManifestWithDA();
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      // Mock fs for the target side but allow temp operations
+      const targetSkillDir = path.join(appPackageFolder, "skills", "myNewSkill");
+
+      const origPathExists = fs.pathExists.bind(fs);
+      sandbox.stub(fs, "pathExists").callsFake(async (p: string) => {
+        if (p === tempZipPath) return true;
+        if (typeof p === "string" && p.includes("myNewSkill") && p.includes(appPackageFolder)) {
+          return false;
+        }
+        if (typeof p === "string" && p.includes("SKILL.md") && !p.includes(appPackageFolder)) {
+          return true;
+        }
+        return origPathExists(p);
+      });
+
+      const ensureDirStub = sandbox.stub(fs, "ensureDir").resolves();
+      const writeFileStub = sandbox.stub(fs, "writeFile").resolves();
+      const moveStub = sandbox.stub(fs, "move").resolves();
+      const readFileStub = sandbox.stub(fs, "readFile").resolves(skillMd as any);
+      sandbox.stub(fs, "remove").resolves();
+
+      sandbox.stub(copilotGptManifestUtils, "addSkill").resolves(
+        ok({
+          name: "test-agent",
+          description: "description",
+        } as DeclarativeCopilotManifestSchema)
+      );
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      await fs.remove(tempZipPath).catch(() => {});
+
+      assert.isTrue(result.isOk());
+    });
+
+    it("errors when zip has invalid skill name format", async () => {
+      const skillMd = "---\nname: 123invalid\ndescription: Bad name\n---\n# 123invalid\n";
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
+      zip.addFile("SKILL.md", Buffer.from(skillMd, "utf-8"));
+
+      const tempZipPath = path.join(require("os").tmpdir(), `test-badname-${Date.now()}.zip`);
+      zip.writeZip(tempZipPath);
+
+      const inputs = createZipInputs(tempZipPath);
+      const manifest = createManifestWithDA();
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+
+      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
+      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
+
+      const core = new FxCore(tools);
+      const result = await core.addSkill(inputs);
+
+      await fs.remove(tempZipPath).catch(() => {});
+
+      assert.isTrue(result.isErr());
+      if (result.isErr()) {
+        assert.equal(result.error.name, "InvalidSkillFolderName");
+      }
+    });
+  });
 });
