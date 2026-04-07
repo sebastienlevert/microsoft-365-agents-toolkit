@@ -272,7 +272,10 @@ describe("resouce group helper test", () => {
         return this;
       },
     };
-    const originalDescriptor = Object.getOwnPropertyDescriptor(armSubscriptions, "SubscriptionClient")!;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      armSubscriptions,
+      "SubscriptionClient"
+    )!;
     Object.defineProperty(armSubscriptions, "SubscriptionClient", {
       configurable: true,
       writable: true,
