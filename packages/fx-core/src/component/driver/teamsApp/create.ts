@@ -37,6 +37,8 @@ import {
 import { AppStudioError } from "./errors";
 import { CreateTeamsAppArgs } from "./interfaces/CreateTeamsAppArgs";
 import { AppStudioResultFactory } from "./results";
+import { FeatureFlagName } from "../../../common/featureFlags";
+import { SovereignCloudEnvironment } from "../../../common/accountUtils";
 
 const actionName = "teamsApp/create";
 
@@ -74,6 +76,16 @@ export class CreateTeamsAppDriver implements StepDriver {
     context: WrapDriverContext,
     outputEnvVarNames?: Map<string, string>
   ): Promise<Result<Map<string, string>, FxError>> {
+    if (
+      process.env[FeatureFlagName.SovereignCloudEnvironment] === SovereignCloudEnvironment.GCCH ||
+      process.env[FeatureFlagName.SovereignCloudEnvironment] === SovereignCloudEnvironment.DOD
+    ) {
+      context.logProvider.warning(
+        getLocalizedString("driver.teamsApp.warning.createUnsupportedCloud", actionName)
+      );
+      return ok(new Map<string, string>());
+    }
+
     const result = this.validateArgs(args);
     if (result.isErr()) {
       return err(result.error);
