@@ -692,37 +692,30 @@ describe("addSkill", () => {
 
     it("errors when zip contains path traversal entries", async () => {
       const AdmZip = require("adm-zip");
-      const zip = new AdmZip();
-      zip.addFile("../../../etc/passwd", Buffer.from("malicious", "utf-8"));
-      const zipBuffer = zip.toBuffer();
-      const zipPath = path.resolve("malicious.zip");
-      const appPackageFolder = path.resolve("test-project", "appPackage");
 
-      const inputs = createZipInputs(zipPath);
+      // AdmZip normalizes "../" away during addFile, so we binary-patch the zip
+      // to inject a real traversal entry that survives round-tripping.
+      const traversalPath = "../../../etc/passwd"; // 19 chars
+      const placeholder = "AAAAAAAAAAAAAAAAAAA"; // 19 chars (same length)
+
+      const zip = new AdmZip();
+      zip.addFile(placeholder, Buffer.from("malicious", "utf-8"));
+      const buf = zip.toBuffer();
+
+      // Patch all occurrences of the placeholder with the traversal path
+      const patched = Buffer.from(buf);
+      let idx: number;
+      while ((idx = patched.indexOf(placeholder)) !== -1) {
+        patched.write(traversalPath, idx, "utf-8");
+      }
+
+      const tempZipPath = path.join(require("os").tmpdir(), `test-traversal-${Date.now()}.zip`);
+      await fs.writeFile(tempZipPath, patched);
+
+      const appPackageFolder = path.resolve("test-project", "appPackage");
+      const traversalInputs = createZipInputs(tempZipPath);
       const manifest = createManifestWithDA();
 
-      sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
-      sandbox
-        .stub(copilotGptManifestUtils, "getManifestPath")
-        .resolves(ok(path.resolve(appPackageFolder, "declarativeAgent.json")));
-      sandbox.stub(MockUserInteraction.prototype, "showMessage").resolves(ok("Add"));
-
-      const pathExistsStub = sandbox.stub(fs, "pathExists");
-      pathExistsStub.withArgs(zipPath).resolves(true);
-
-      // Use real AdmZip but mock the file system
-      const origAdmZip = require("adm-zip");
-      const stubbedZip = new origAdmZip(zipBuffer);
-
-      // We need to test the actual importSkillFromZip method
-      // Write zip to a temp location for real test
-      const tempZipPath = path.join(require("os").tmpdir(), `test-traversal-${Date.now()}.zip`);
-      zip.writeZip(tempZipPath);
-      const traversalInputs = createZipInputs(tempZipPath);
-
-      sandbox.restore();
-      setTools(tools);
-      sandbox.stub(validationUtils, "validateInputs").resolves(undefined);
       sandbox.stub(manifestUtils, "_readAppManifest").resolves(ok(manifest));
       sandbox
         .stub(copilotGptManifestUtils, "getManifestPath")
