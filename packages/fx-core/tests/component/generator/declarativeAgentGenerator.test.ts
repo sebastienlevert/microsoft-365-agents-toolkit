@@ -32,6 +32,7 @@ import { featureFlagManager } from "../../../src/common/featureFlags";
 import { createContext, setTools } from "../../../src/common/globalVars";
 import { copilotGptManifestUtils } from "../../../src/component/driver/teamsApp/utils/CopilotGptManifestUtils";
 import { pluginManifestUtils } from "../../../src/component/driver/teamsApp/utils/PluginManifestUtils";
+import { developerPortalScaffoldUtils } from "../../../src/component/developerPortalScaffoldUtils";
 import { DeclarativeAgentGenerator } from "../../../src/component/generator/declarativeAgent/generator";
 import * as generatorHelper from "../../../src/component/generator/declarativeAgent/helper";
 import * as oneDriveSharePointHandler from "../../../src/component/generator/declarativeAgent/oneDriveSharePointHandler";
@@ -445,6 +446,50 @@ describe("copilotExtension", async () => {
 
       const res = await generator.post(context, inputs, "");
       assert.isTrue(res.isOk());
+    });
+
+    it("post calls updateFilesForTdp when teamsAppFromTdp is set", async () => {
+      const generator = new DeclarativeAgentGenerator();
+      const context = createContext();
+      const inputs: Inputs = {
+        platform: Platform.VSCode,
+        projectPath: "./",
+        [QuestionNames.TemplateName]: TemplateNames.DeclarativeAgentBasic,
+        [QuestionNames.AppName]: "app",
+        teamsAppFromTdp: { teamsAppId: "fake-id" },
+      };
+
+      sandbox.stub(featureFlagManager, "getBooleanValue").returns(false);
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok("declarativeAgent.json"));
+      sandbox.stub(developerPortalScaffoldUtils, "updateFilesForTdp").resolves(ok(undefined));
+
+      const res = await generator.post(context, inputs, "");
+      assert.isTrue(res.isOk());
+    });
+
+    it("post returns error when updateFilesForTdp fails in TDP flow", async () => {
+      const generator = new DeclarativeAgentGenerator();
+      const context = createContext();
+      const inputs: Inputs = {
+        platform: Platform.VSCode,
+        projectPath: "./",
+        [QuestionNames.TemplateName]: TemplateNames.DeclarativeAgentBasic,
+        [QuestionNames.AppName]: "app",
+        teamsAppFromTdp: { teamsAppId: "fake-id" },
+      };
+
+      sandbox.stub(featureFlagManager, "getBooleanValue").returns(false);
+      sandbox
+        .stub(copilotGptManifestUtils, "getManifestPath")
+        .resolves(ok("declarativeAgent.json"));
+      sandbox
+        .stub(developerPortalScaffoldUtils, "updateFilesForTdp")
+        .resolves(err(new UserError("fakeSource", "fakeError", "fakeError")));
+
+      const res = await generator.post(context, inputs, "");
+      assert.isTrue(res.isErr() && res.error.name === "fakeError");
     });
   });
 
@@ -1830,8 +1875,7 @@ describe("helper", async () => {
   });
 
   describe("generator.post MCPForDA branch", () => {
-    it("post() calls generateForMCPForDA when flag and template match", async () => {
-      const { FeatureFlags } = await import("../../../src/common/featureFlags");
+    it("post() calls generateForMCPForDA when template matches", async () => {
       const generator = new DeclarativeAgentGenerator();
       const context = createContext();
       const destinationPath = "/test/destination";
@@ -1839,10 +1883,6 @@ describe("helper", async () => {
       sandbox
         .stub(copilotGptManifestUtils, "getManifestPath")
         .resolves(ok("/test/destination/appPackage/da.json"));
-      sandbox.stub(featureFlagManager, "getBooleanValue").callsFake((flag: any) => {
-        if (flag === FeatureFlags.MCPForDA) return true;
-        return false;
-      });
       const generateStub = sandbox
         .stub(generatorHelper, "generateForMCPForDA")
         .resolves(ok({ warnings: [] }));

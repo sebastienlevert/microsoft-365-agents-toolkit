@@ -198,8 +198,7 @@ import { getSettingsVersion, projectVersionCheck } from "./utils/telemetryUtils"
 
 export async function activate(context: vscode.ExtensionContext) {
   // control whether to show chat participant ui entries
-  const shouldEnableChatParticipantUIEntries =
-    releaseControlledFeatureSettings.shouldEnableTeamsCopilotChatUI;
+  const shouldEnableChatParticipantUIEntries = true;
   featureFlagManager.setBooleanValue(
     CoreFeatureFlags.ChatParticipantUIEntries,
     shouldEnableChatParticipantUIEntries
@@ -1342,7 +1341,7 @@ function registerLanguageFeatures(context: vscode.ExtensionContext) {
     );
   }
 
-  if (featureFlagManager.getBooleanValue(FeatureFlags.MCPForDA)) {
+  {
     const workspaceMCPConfigSelector: vscode.DocumentSelector = {
       pattern: `**/mcp.json`,
     };

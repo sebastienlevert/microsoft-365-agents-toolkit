@@ -27,7 +27,10 @@ import { featureFlagManager, FeatureFlags } from "../../../common/featureFlags";
 import { ErrorContextMW } from "../../../common/globalVars";
 import { getLocalizedString } from "../../../common/localizeUtils";
 import { FileNotFoundError, InvalidActionInputError, JSONSyntaxError } from "../../../error/common";
-import { InvalidFileOutsideOfTheDirectotryError, AppPackageSizeExceededError } from "../../../error/teamsApp";
+import {
+  InvalidFileOutsideOfTheDirectotryError,
+  AppPackageSizeExceededError,
+} from "../../../error/teamsApp";
 import { getAbsolutePath } from "../../utils/common";
 import { expandVariableWithFunction, ManifestType } from "../../utils/envFunctionUtils";
 import { DriverContext } from "../interface/commonArgs";
@@ -316,7 +319,7 @@ export class CreateAppPackageDriver implements StepDriver {
       );
       if (getCopilotGptRes.isOk()) {
         // Add action files
-        if (getCopilotGptRes.value.actions) {
+        if (Array.isArray(getCopilotGptRes.value.actions)) {
           const pluginFiles = getCopilotGptRes.value.actions.map((action) => action.file);
 
           for (const pluginFile of pluginFiles) {
@@ -346,7 +349,7 @@ export class CreateAppPackageDriver implements StepDriver {
           }
         }
         // Add embedded knowledge files
-        if (getCopilotGptRes.value.capabilities) {
+        if (Array.isArray(getCopilotGptRes.value.capabilities)) {
           const embeddedKnowledgeCapabilities = getCopilotGptRes.value.capabilities.filter(
             (capability) => capability.name === DeclarativeCopilotCapabilityName.EmbeddedKnowledge
           );

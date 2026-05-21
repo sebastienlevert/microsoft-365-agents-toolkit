@@ -6,7 +6,8 @@ import axios from "axios";
 import { expect } from "chai";
 import "mocha";
 import { createSandbox } from "sinon";
-import { GraphClient, RetryHandler } from "../../src/client/graphClient";
+import { GraphClient } from "../../src/client/graphClient";
+import { RetryHandler } from "../../src/common/retryHandler";
 import * as globalState from "../../src/common/globalState";
 import { setTools } from "../../src/common/globalVars";
 import { MockedM365Provider, MockTools } from "../core/utils";
@@ -425,7 +426,7 @@ describe("GraphAPIClient Test", () => {
           displayName: "General",
           name: "General Label",
           description: "General Label Description",
-        },
+        } as unknown as SensitivityLabel,
         {
           id: "confidential-id",
           displayName: "Confidential",

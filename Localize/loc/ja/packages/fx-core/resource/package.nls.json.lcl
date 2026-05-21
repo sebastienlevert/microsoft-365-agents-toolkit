@@ -5124,19 +5124,25 @@
       </Item>
       <Item ItemId=";core.shareOperationQuestion.option.removeShareAccessFromUsers" ItemType="0" PsrId="306" Leaf="true">
         <Str Cat="Text">
-          <Val><![CDATA[Remove access for selected user(s)]]></Val>
+          <Val><![CDATA[Remove access]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
-            <Val><![CDATA[選択したユーザーのアクセス権を削除する]]></Val>
+            <Val><![CDATA[アクセス権の削除]]></Val>
           </Tgt>
+          <Prev Cat="Text">
+            <Val><![CDATA[Remove access for selected user(s)]]></Val>
+          </Prev>
         </Str>
         <Disp Icon="Str" />
       </Item>
       <Item ItemId=";core.shareOperationQuestion.option.shareWithUsers" ItemType="0" PsrId="306" Leaf="true">
         <Str Cat="Text">
-          <Val><![CDATA[Share access with selected user(s)]]></Val>
+          <Val><![CDATA[Share access]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
-            <Val><![CDATA[選択したユーザーとアクセスを共有する]]></Val>
+            <Val><![CDATA[共有アクセス]]></Val>
           </Tgt>
+          <Prev Cat="Text">
+            <Val><![CDATA[Share access with selected user(s)]]></Val>
+          </Prev>
         </Str>
         <Disp Icon="Str" />
       </Item>
@@ -5181,19 +5187,25 @@
       </Item>
       <Item ItemId=";core.shareScopeQuestion.option.shareWithTenant" ItemType="0" PsrId="306" Leaf="true">
         <Str Cat="Text">
-          <Val><![CDATA[Share the agent with all tenant users]]></Val>
+          <Val><![CDATA[Share to all tenant users]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
-            <Val><![CDATA[エージェントをすべてのテナント ユーザーと共有する]]></Val>
+            <Val><![CDATA[すべてのテナント ユーザーと共有する]]></Val>
           </Tgt>
+          <Prev Cat="Text">
+            <Val><![CDATA[Share the agent with all tenant users]]></Val>
+          </Prev>
         </Str>
         <Disp Icon="Str" />
       </Item>
       <Item ItemId=";core.shareScopeQuestion.option.shareWithUsers" ItemType="0" PsrId="306" Leaf="true">
         <Str Cat="Text">
-          <Val><![CDATA[Share the agent with selected user(s)]]></Val>
+          <Val><![CDATA[Share to specified users(s) or user group]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
-            <Val><![CDATA[選択したユーザーとエージェントを共有する]]></Val>
+            <Val><![CDATA[指定したユーザーまたはユーザー グループと共有する]]></Val>
           </Tgt>
+          <Prev Cat="Text">
+            <Val><![CDATA[Share the agent with selected user(s)]]></Val>
+          </Prev>
         </Str>
         <Disp Icon="Str" />
       </Item>
@@ -8064,10 +8076,13 @@
       </Item>
       <Item ItemId=";driver.teamsApp.warning.createUnsupportedCloud" ItemType="0" PsrId="306" Leaf="true">
         <Str Cat="Text">
-          <Val><![CDATA[Skipping %s as the required Developer Portal API is not yet available in GCC H and DoD. App ID will be generated locally later.]]></Val>
+          <Val><![CDATA[Skipping %s as the required Developer Portal API is not yet available in GCC H and DoD. App ID will be generated locally.]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
-            <Val><![CDATA[必要な Developer Portal API は GCC H および DoD ではまだ利用できないため、%s をスキップしています。アプリ ID は後でローカルで生成されます。]]></Val>
+            <Val><![CDATA[必要な開発者ポータルAPI は GCC H および DoD ではまだ利用できないため、%s をスキップしています。アプリ ID はローカルで生成されます。]]></Val>
           </Tgt>
+          <Prev Cat="Text">
+            <Val><![CDATA[Skipping %s as the required Developer Portal API is not yet available in GCC H and DoD. App ID will be generated locally later.]]></Val>
+          </Prev>
         </Str>
         <Disp Icon="Str" />
       </Item>
@@ -9996,6 +10011,15 @@
           <Val><![CDATA[File path: %s, title: %s]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
             <Val><![CDATA[ファイル パス: %s、タイトル: %s]]></Val>
+          </Tgt>
+        </Str>
+        <Disp Icon="Str" />
+      </Item>
+      <Item ItemId=";error.teamsGraph.apiFailed" ItemType="0" PsrId="306" InstFlg="true" Leaf="true">
+        <Str Cat="Text">
+          <Val><![CDATA[Unable to make API call to Teams Graph. Check [Output panel]5D;(command:fx-extension.showOutputChannel) for details.]]></Val>
+          <Tgt Cat="Text" Stat="Loc" Orig="New">
+            <Val><![CDATA[Teams Graph への API 呼び出しを実行できません。詳細は [出力パネル]5D;(command:fx-extension.showOutputChannel) で確認してください。]]></Val>
           </Tgt>
         </Str>
         <Disp Icon="Str" />
