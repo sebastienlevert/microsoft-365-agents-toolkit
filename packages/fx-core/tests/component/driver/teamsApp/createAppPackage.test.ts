@@ -16,6 +16,7 @@ import chai from "chai";
 import fs from "fs-extra";
 import "mocha";
 import mockedEnv, { RestoreFn } from "mocked-env";
+import * as path from "path";
 import * as sinon from "sinon";
 import { featureFlagManager, FeatureFlags } from "../../../../src/common/featureFlags";
 import { DriverContext } from "../../../../src/component/driver/interface/commonArgs";
@@ -2646,7 +2647,9 @@ describe("teamsApp/createAppPackage", async () => {
       chai.assert.isTrue(result.isOk());
       const skillMdChecks = pathExistsStub
         .getCalls()
-        .filter((call) => call.args[0].toString().includes("skills\\skill1\\SKILL.md"));
+        .filter((call) =>
+          call.args[0].toString().includes(path.join("skills", "skill1", "SKILL.md"))
+        );
       chai.assert.lengthOf(skillMdChecks, 1);
 
       if (await fs.pathExists(teamsManifestAgentSkillsArgs.outputZipPath)) {
@@ -2702,7 +2705,7 @@ describe("teamsApp/createAppPackage", async () => {
       sinon.stub(fs, "writeFile").callsFake(async () => {});
       sinon.stub(copilotGptManifestUtils, "getManifest").resolves(ok(declarativeAgentManifest));
       sinon.stub(fs, "pathExists").callsFake(async (filePath) => {
-        if (filePath.toString().includes("skills\\skill1\\SKILL.md")) {
+        if (filePath.toString().includes(path.join("skills", "skill1", "SKILL.md"))) {
           return false;
         }
         return true;
