@@ -62,6 +62,7 @@ export const rootNode = {
         detail: "template.createProjectQuestion.projectType.copilotHelp.detail",
         groupName: "template.createProjectQuestion.projectType.copilotGroup.title",
         icon: "$(question)",
+        featureFlag: "TEAMSFX_CHAT_PARTICIPANT_ENTRIES",
       },
     ],
   },
