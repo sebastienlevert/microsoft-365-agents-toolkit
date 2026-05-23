@@ -51,8 +51,7 @@
         "label": "template.createProjectQuestion.projectType.copilotHelp.label",
         "detail": "template.createProjectQuestion.projectType.copilotHelp.detail",
         "groupName": "template.createProjectQuestion.projectType.copilotGroup.title",
-        "icon": "$(question)",
-        "featureFlag": "TEAMSFX_CHAT_PARTICIPANT_ENTRIES"
+        "icon": "$(question)"
       }
     ]
   },
