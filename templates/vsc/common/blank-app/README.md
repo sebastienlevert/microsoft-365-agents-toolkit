@@ -26,7 +26,7 @@ This blank project is a starting point. Add capabilities by editing `manifest.js
 ## Provision and Preview
 
 1. Press `F5` or run `Provision` from the command palette to register your app
-2. Launch `Preview in Teams (Edge)` or `Preview in Teams (Chrome)` to install and view your app in Microsoft Teams
+2. Launch `Preview in Copilot (Edge)` or `Preview in Copilot (Chrome)` to open your app in Microsoft 365 Copilot
 
 ## Learn More
 
