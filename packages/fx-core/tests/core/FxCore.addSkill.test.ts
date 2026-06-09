@@ -17,6 +17,7 @@ import * as path from "path";
 import sinon from "sinon";
 import { FxCore } from "../../src/core/FxCore";
 import { setTools, TOOLS } from "../../src/common/globalVars";
+import { featureFlagManager, FeatureFlagName } from "../../src/common/featureFlags";
 import { copilotGptManifestUtils } from "../../src/component/driver/teamsApp/utils/CopilotGptManifestUtils";
 import { manifestUtils } from "../../src/component/driver/teamsApp/utils/ManifestUtils";
 import { UserCancelError } from "../../src/error/common";
@@ -32,6 +33,10 @@ describe("addSkill", () => {
   beforeEach(() => {
     setTools(tools);
     sandbox.stub(validationUtils, "validateInputs").resolves(undefined);
+    sandbox.stub(featureFlagManager, "getBooleanValue").callsFake((flag: any) => {
+      if (flag.name === FeatureFlagName.AgentSkillsManifest) return true;
+      return false;
+    });
   });
 
   afterEach(() => {
@@ -63,6 +68,23 @@ describe("addSkill", () => {
       ...overrides,
     };
   }
+
+  it("returns AgentSkillsDisabled error when TEAMSFX_AGENT_SKILLS is off", async () => {
+    sandbox.restore();
+    setTools(tools);
+    sandbox.stub(validationUtils, "validateInputs").resolves(undefined);
+    sandbox.stub(featureFlagManager, "getBooleanValue").returns(false);
+
+    const inputs = createBaseInputs();
+    const core = new FxCore(tools);
+    const result = await core.addSkill(inputs);
+
+    assert.isTrue(result.isErr());
+    if (result.isErr()) {
+      assert.instanceOf(result.error, UserError);
+      assert.equal(result.error.name, "AgentSkillsDisabled");
+    }
+  });
 
   it("successfully creates a new skill directory with SKILL.md", async () => {
     const inputs = createBaseInputs();

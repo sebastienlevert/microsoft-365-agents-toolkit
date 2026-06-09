@@ -2651,6 +2651,13 @@ describe("teamsApp/createAppPackage", async () => {
         "./tests/plugins/resource/appstudio/resources-multi-env/build/appPackage/manifest.skills.json",
     };
 
+    beforeEach(() => {
+      sinon.stub(featureFlagManager, "getBooleanValue").callsFake((flag: any) => {
+        if (flag.name === FeatureFlagName.AgentSkillsManifest) return true;
+        return false;
+      });
+    });
+
     function createTeamsManifest(): TeamsManifestV1D19.TeamsManifestV1D19 {
       const manifest = {
         manifestVersion: "1.19",

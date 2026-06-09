@@ -414,35 +414,38 @@ export class CreateAppPackageDriver implements StepDriver {
           }
         }
         // Add agent skill directories (support both agent_skills and x-agent_skills)
-        const agentSkills =
-          getCopilotGptRes.value.agent_skills || (getCopilotGptRes.value as any)["x-agent_skills"];
-        if (agentSkills && Array.isArray(agentSkills)) {
-          for (const skill of agentSkills) {
-            if (skill.folder) {
-              // Resolve skill folder relative to appDirectory (not .generated/)
-              // since skill folders don't support env var substitution
-              const skillFolderAbsolutePath = path.resolve(appDirectory, skill.folder);
-              const checkExistenceRes = await this.validateReferencedFile(
-                skillFolderAbsolutePath,
-                appDirectory
-              );
-              if (checkExistenceRes.isErr()) {
-                return err(checkExistenceRes.error);
-              }
-
-              const skillMdPath = path.join(skillFolderAbsolutePath, "SKILL.md");
-              if (!(await fs.pathExists(skillMdPath))) {
-                return err(
-                  new FileNotFoundError(
-                    actionName,
-                    skillMdPath,
-                    "https://aka.ms/teamsfx-actions/teamsapp-zipAppPackage"
-                  )
+        if (featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest)) {
+          const agentSkills =
+            getCopilotGptRes.value.agent_skills ||
+            (getCopilotGptRes.value as any)["x-agent_skills"];
+          if (agentSkills && Array.isArray(agentSkills)) {
+            for (const skill of agentSkills) {
+              if (skill.folder) {
+                // Resolve skill folder relative to appDirectory (not .generated/)
+                // since skill folders don't support env var substitution
+                const skillFolderAbsolutePath = path.resolve(appDirectory, skill.folder);
+                const checkExistenceRes = await this.validateReferencedFile(
+                  skillFolderAbsolutePath,
+                  appDirectory
                 );
-              }
+                if (checkExistenceRes.isErr()) {
+                  return err(checkExistenceRes.error);
+                }
 
-              const skillRelativePath = path.relative(appDirectory, skillFolderAbsolutePath);
-              zip.addLocalFolder(skillFolderAbsolutePath, skillRelativePath);
+                const skillMdPath = path.join(skillFolderAbsolutePath, "SKILL.md");
+                if (!(await fs.pathExists(skillMdPath))) {
+                  return err(
+                    new FileNotFoundError(
+                      actionName,
+                      skillMdPath,
+                      "https://aka.ms/teamsfx-actions/teamsapp-zipAppPackage"
+                    )
+                  );
+                }
+
+                const skillRelativePath = path.relative(appDirectory, skillFolderAbsolutePath);
+                zip.addLocalFolder(skillFolderAbsolutePath, skillRelativePath);
+              }
             }
           }
         }
