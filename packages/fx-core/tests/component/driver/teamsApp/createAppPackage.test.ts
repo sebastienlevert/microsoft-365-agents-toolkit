@@ -17,7 +17,6 @@ import chai from "chai";
 import fs from "fs-extra";
 import "mocha";
 import mockedEnv, { RestoreFn } from "mocked-env";
-import * as path from "path";
 import * as sinon from "sinon";
 import { featureFlagManager, FeatureFlagName, FeatureFlags } from "../../../../src/common/featureFlags";
 import { DriverContext } from "../../../../src/component/driver/interface/commonArgs";
@@ -2763,6 +2762,7 @@ describe("teamsApp/createAppPackage", async () => {
       sinon.stub(fs, "writeFile").callsFake(async () => {});
       sinon.stub(copilotGptManifestUtils, "getManifest").resolves(ok(declarativeAgentManifest));
       sinon.stub(fs, "pathExists").resolves(true);
+      sinon.stub(fs, "realpath").callsFake(async (p: any) => p);
 
       const result = (await teamsAppDriver.execute(skillArgs, mockedDriverContext)).result;
       chai.assert.isTrue(result.isErr());

@@ -561,6 +561,16 @@ export class CreateAppPackageDriver implements StepDriver {
           )
         );
       }
+      const skillMdPath = path.join(skillFolderAbs, "SKILL.md");
+      if (!(await fs.pathExists(skillMdPath))) {
+        return err(
+          new FileNotFoundError(
+            actionName,
+            skillMdPath,
+            "https://aka.ms/teamsfx-actions/teamsapp-zipAppPackage"
+          )
+        );
+      }
       const realSkillFolder = await fs.realpath(skillFolderAbs);
       const realAppDirectory = await fs.realpath(appDirectory);
       const relativeToApp = path.relative(realAppDirectory, realSkillFolder);
