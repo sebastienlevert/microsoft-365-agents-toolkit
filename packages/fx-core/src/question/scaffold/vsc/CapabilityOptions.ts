@@ -545,7 +545,9 @@ export class DACapabilityOptions {
       DACapabilityOptions.noPlugin(),
       DACapabilityOptions.withPlugin(),
       DACapabilityOptions.withGC(),
-      DACapabilityOptions.withSkill(),
+      ...(featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsEnabled)
+        ? [DACapabilityOptions.withSkill()]
+        : []),
       DACapabilityOptions.typeSpec(),
     ];
     return items;
