@@ -9,7 +9,6 @@ import mockedEnv, { RestoreFn } from "mocked-env";
 import * as os from "os";
 import * as path from "path";
 import sinon from "sinon";
-import { featureFlagManager, FeatureFlags } from "../../../../src/common/featureFlags";
 import { setTools } from "../../../../src/common/globalVars";
 import { CreateAppPackageDriver } from "../../../../src/component/driver/teamsApp/createAppPackage";
 import { CreateAppPackageArgs } from "../../../../src/component/driver/teamsApp/interfaces/CreateAppPackageArgs";
@@ -185,8 +184,6 @@ describe("openPlugin fixture conversion (Contoso Helper)", () => {
     if (convertRes.isErr()) throw new Error(convertRes.error.message);
 
     let envRestore: RestoreFn | undefined;
-    const wasEnabled = featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest);
-    featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, true);
     try {
       envRestore = mockedEnv({
         TEAMSFX_ENV: "dev",
@@ -227,7 +224,6 @@ describe("openPlugin fixture conversion (Contoso Helper)", () => {
       expect(entries.some((e) => e.startsWith("commands/"))).to.equal(false);
     } finally {
       if (envRestore) envRestore();
-      featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, wasEnabled);
     }
   });
 });

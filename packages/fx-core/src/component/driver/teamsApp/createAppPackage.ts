@@ -458,19 +458,16 @@ export class CreateAppPackageDriver implements StepDriver {
       }
     }
 
-    if (featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest)) {
-      const teamsManifestAgentSkills = (
-        manifest as TeamsManifestVDevPreview.TeamsManifestVDevPreview
-      ).agentSkills;
-      if (teamsManifestAgentSkills?.length) {
-        const addSkillsRes = await this.addAgentSkillFolders(
-          zip,
-          teamsManifestAgentSkills,
-          appDirectory
-        );
-        if (addSkillsRes.isErr()) {
-          return err(addSkillsRes.error);
-        }
+    const teamsManifestAgentSkills = (manifest as TeamsManifestVDevPreview.TeamsManifestVDevPreview)
+      .agentSkills;
+    if (teamsManifestAgentSkills?.length) {
+      const addSkillsRes = await this.addAgentSkillFolders(
+        zip,
+        teamsManifestAgentSkills,
+        appDirectory
+      );
+      if (addSkillsRes.isErr()) {
+        return err(addSkillsRes.error);
       }
     }
 
