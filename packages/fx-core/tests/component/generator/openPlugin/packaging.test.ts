@@ -75,7 +75,7 @@ describe("openPlugin → teamsApp/zipAppPackage end-to-end", () => {
     }
   });
 
-  it("zips skill folders when TEAMSFX_AGENT_SKILLS is on", async () => {
+  it("zips skill folders unconditionally for Teams manifest agentSkills", async () => {
     const convertRes = await importOpenPlugin({
       path: pluginDir,
       output: projectDir,
@@ -84,44 +84,38 @@ describe("openPlugin → teamsApp/zipAppPackage end-to-end", () => {
     });
     if (convertRes.isErr()) throw new Error(convertRes.error.message);
 
-    const wasEnabled = featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest);
-    featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, true);
-    try {
-      const args: CreateAppPackageArgs = {
-        manifestPath: path.join(projectDir, "appPackage", "manifest.json"),
-        outputZipPath: path.join(projectDir, "appPackage", "build", "appPackage.dev.zip"),
-        outputFolder: path.join(projectDir, "appPackage", "build"),
-      };
-      const ctx: any = {
-        m365TokenProvider: new MockedM365Provider(),
-        projectPath: projectDir,
-        platform: Platform.CLI,
-        logProvider: new MockedLogProvider(),
-        ui: new MockedUserInteraction(),
-        addTelemetryProperties: () => {},
-      };
-      const buildRes = (await driver.execute(args, ctx)).result;
-      if (buildRes.isErr()) throw new Error(buildRes.error.message);
+    const args: CreateAppPackageArgs = {
+      manifestPath: path.join(projectDir, "appPackage", "manifest.json"),
+      outputZipPath: path.join(projectDir, "appPackage", "build", "appPackage.dev.zip"),
+      outputFolder: path.join(projectDir, "appPackage", "build"),
+    };
+    const ctx: any = {
+      m365TokenProvider: new MockedM365Provider(),
+      projectPath: projectDir,
+      platform: Platform.CLI,
+      logProvider: new MockedLogProvider(),
+      ui: new MockedUserInteraction(),
+      addTelemetryProperties: () => {},
+    };
+    const buildRes = (await driver.execute(args, ctx)).result;
+    if (buildRes.isErr()) throw new Error(buildRes.error.message);
 
-      const zip = new AdmZip(args.outputZipPath);
-      const entries = zip.getEntries().map((e) => e.entryName);
-      expect(entries).to.include("manifest.json");
-      expect(entries).to.include("color.png");
-      expect(entries).to.include("outline.png");
-      expect(
-        entries.some((e) => e === "skills/hello/SKILL.md" || e === "skills\\hello\\SKILL.md")
-      ).to.equal(true);
-      expect(
-        entries.some(
-          (e) => e === "skills/hello/nested/helper.md" || e === "skills\\hello\\nested\\helper.md"
-        )
-      ).to.equal(true);
-    } finally {
-      featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, wasEnabled);
-    }
+    const zip = new AdmZip(args.outputZipPath);
+    const entries = zip.getEntries().map((e) => e.entryName);
+    expect(entries).to.include("manifest.json");
+    expect(entries).to.include("color.png");
+    expect(entries).to.include("outline.png");
+    expect(
+      entries.some((e) => e === "skills/hello/SKILL.md" || e === "skills\\hello\\SKILL.md")
+    ).to.equal(true);
+    expect(
+      entries.some(
+        (e) => e === "skills/hello/nested/helper.md" || e === "skills\\hello\\nested\\helper.md"
+      )
+    ).to.equal(true);
   });
 
-  it("does NOT zip skill folders when TEAMSFX_AGENT_SKILLS is off", async () => {
+  it("zips skill folders even when TEAMSFX_AGENT_SKILLS is off (Teams manifest agentSkills is unconditional)", async () => {
     const convertRes = await importOpenPlugin({
       path: pluginDir,
       output: projectDir,
@@ -151,9 +145,9 @@ describe("openPlugin → teamsApp/zipAppPackage end-to-end", () => {
 
       const zip = new AdmZip(args.outputZipPath);
       const entries = zip.getEntries().map((e) => e.entryName);
-      expect(entries.some((e) => e.startsWith("skills/") || e.startsWith("skills\\"))).to.equal(
-        false
-      );
+      expect(
+        entries.some((e) => e === "skills/hello/SKILL.md" || e === "skills\\hello\\SKILL.md")
+      ).to.equal(true);
     } finally {
       featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, wasEnabled);
     }
@@ -173,27 +167,21 @@ describe("openPlugin → teamsApp/zipAppPackage end-to-end", () => {
     manifest.agentSkills = [{ folder: "../../escape" }];
     await fs.writeJSON(manifestPath, manifest, { spaces: 4 });
 
-    const wasEnabled = featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest);
-    featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, true);
-    try {
-      const args: CreateAppPackageArgs = {
-        manifestPath,
-        outputZipPath: path.join(projectDir, "appPackage", "build", "appPackage.dev.zip"),
-        outputFolder: path.join(projectDir, "appPackage", "build"),
-      };
-      const ctx: any = {
-        m365TokenProvider: new MockedM365Provider(),
-        projectPath: projectDir,
-        platform: Platform.CLI,
-        logProvider: new MockedLogProvider(),
-        ui: new MockedUserInteraction(),
-        addTelemetryProperties: () => {},
-      };
-      const buildRes = (await driver.execute(args, ctx)).result;
-      expect(buildRes.isErr()).to.equal(true);
-    } finally {
-      featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, wasEnabled);
-    }
+    const args: CreateAppPackageArgs = {
+      manifestPath,
+      outputZipPath: path.join(projectDir, "appPackage", "build", "appPackage.dev.zip"),
+      outputFolder: path.join(projectDir, "appPackage", "build"),
+    };
+    const ctx: any = {
+      m365TokenProvider: new MockedM365Provider(),
+      projectPath: projectDir,
+      platform: Platform.CLI,
+      logProvider: new MockedLogProvider(),
+      ui: new MockedUserInteraction(),
+      addTelemetryProperties: () => {},
+    };
+    const buildRes = (await driver.execute(args, ctx)).result;
+    expect(buildRes.isErr()).to.equal(true);
   });
 
   it("returns error when agentSkills folder does not exist", async () => {
@@ -210,26 +198,20 @@ describe("openPlugin → teamsApp/zipAppPackage end-to-end", () => {
     manifest.agentSkills = [{ folder: "./skills/nonexistent" }];
     await fs.writeJSON(manifestPath, manifest, { spaces: 4 });
 
-    const wasEnabled = featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest);
-    featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, true);
-    try {
-      const args: CreateAppPackageArgs = {
-        manifestPath,
-        outputZipPath: path.join(projectDir, "appPackage", "build", "appPackage.dev.zip"),
-        outputFolder: path.join(projectDir, "appPackage", "build"),
-      };
-      const ctx: any = {
-        m365TokenProvider: new MockedM365Provider(),
-        projectPath: projectDir,
-        platform: Platform.CLI,
-        logProvider: new MockedLogProvider(),
-        ui: new MockedUserInteraction(),
-        addTelemetryProperties: () => {},
-      };
-      const buildRes = (await driver.execute(args, ctx)).result;
-      expect(buildRes.isErr()).to.equal(true);
-    } finally {
-      featureFlagManager.setBooleanValue(FeatureFlags.AgentSkillsManifest, wasEnabled);
-    }
+    const args: CreateAppPackageArgs = {
+      manifestPath,
+      outputZipPath: path.join(projectDir, "appPackage", "build", "appPackage.dev.zip"),
+      outputFolder: path.join(projectDir, "appPackage", "build"),
+    };
+    const ctx: any = {
+      m365TokenProvider: new MockedM365Provider(),
+      projectPath: projectDir,
+      platform: Platform.CLI,
+      logProvider: new MockedLogProvider(),
+      ui: new MockedUserInteraction(),
+      addTelemetryProperties: () => {},
+    };
+    const buildRes = (await driver.execute(args, ctx)).result;
+    expect(buildRes.isErr()).to.equal(true);
   });
 });

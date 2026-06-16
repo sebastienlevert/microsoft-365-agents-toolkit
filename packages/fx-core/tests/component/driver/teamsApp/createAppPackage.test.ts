@@ -2868,13 +2868,6 @@ describe("teamsApp/createAppPackage", async () => {
         "./tests/plugins/resource/appstudio/resources-multi-env/build/appPackage/manifest.teams-manifest-skills.json",
     };
 
-    beforeEach(() => {
-      sinon.stub(featureFlagManager, "getBooleanValue").callsFake((flag: any) => {
-        if (flag.name === FeatureFlagName.AgentSkillsManifest) return true;
-        return false;
-      });
-    });
-
     function createTeamsManifestWithAgentSkills(): TeamsManifestV1D19.TeamsManifestV1D19 & {
       agentSkills?: { folder: string }[];
     } {
@@ -2893,7 +2886,7 @@ describe("teamsApp/createAppPackage", async () => {
       return manifest;
     }
 
-    it("should bundle top-level Teams manifest agentSkills folders", async () => {
+    it("should bundle top-level Teams manifest agentSkills folders unconditionally (no feature flag required)", async () => {
       const manifest = createTeamsManifestWithAgentSkills();
       manifest.agentSkills = [{ folder: "skills/skill1" }];
       const declarativeAgentManifest = {
@@ -2902,6 +2895,7 @@ describe("teamsApp/createAppPackage", async () => {
         actions: [],
       } as any;
 
+      sinon.stub(featureFlagManager, "getBooleanValue").returns(false);
       sinon.stub(manifestUtils, "getManifestV3").resolves(ok(manifest));
       sinon.stub(fs, "chmod").callsFake(async () => {});
       sinon.stub(fs, "writeFile").callsFake(async () => {});
@@ -2937,6 +2931,10 @@ describe("teamsApp/createAppPackage", async () => {
         agent_skills: [{ folder: "skills/skill1" }],
       } as any;
 
+      sinon.stub(featureFlagManager, "getBooleanValue").callsFake((flag: any) => {
+        if (flag.name === FeatureFlagName.AgentSkillsManifest) return true;
+        return false;
+      });
       sinon.stub(manifestUtils, "getManifestV3").resolves(ok(manifest));
       sinon.stub(fs, "chmod").callsFake(async () => {});
       sinon.stub(fs, "writeFile").callsFake(async () => {});

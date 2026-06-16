@@ -15,5 +15,3 @@ This project was scaffolded by `atk import openplugin`.
 2. For every `agentConnectors[*].toolSource.remoteMcpServer.authorization` entry with `type === "OAuthPluginVault"`, register a matching credential reference in the Microsoft 365 Developer Portal using the `referenceId` value baked into the manifest.
 3. Build the upload package: `atk teamsapp package`.
 4. Validate: `atk teamsapp validate --file-path ./appPackage/build/appPackage.dev.zip`.
-
-This project requires the `TEAMSFX_AGENT_SKILLS` feature flag while `agentSkills` support is being rolled out.
