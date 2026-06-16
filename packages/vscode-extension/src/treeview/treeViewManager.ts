@@ -194,16 +194,10 @@ class TreeViewManager {
   }
 
   private getDevelopmentCommands(): TreeViewCommand[] {
-    const getHelpFromCopilotTitle = featureFlagManager.getBooleanValue(
-      FeatureFlags.HideGitHubCopilotPreviewTag
-    )
-      ? localize("teamstoolkit.commandsTreeViewProvider.getCopilotHelpTitle")
-      : localize("teamstoolkit.commandsTreeViewProvider.getCopilotHelpTitle.preview");
-    const getHelpFromCopilotCommand: string = featureFlagManager.getBooleanValue(
-      FeatureFlags.HideGitHubCopilotPreviewTag
-    )
-      ? "fx-extension.invokeChat"
-      : "fx-extension.invokeChatWithPreviewTag";
+    const getHelpFromCopilotTitle = localize(
+      "teamstoolkit.commandsTreeViewProvider.getCopilotHelpTitle"
+    );
+    const getHelpFromCopilotCommand = "fx-extension.invokeChat";
     const isKiotaNPMIntegrationEnabled = featureFlagManager.getBooleanValue(
       FeatureFlags.KiotaNPMIntegration
     );
@@ -267,6 +261,18 @@ class TreeViewManager {
               "fx-extension.regeneratePlugin",
               "regeneratePlugin",
               { name: "teamsfx-regenerate-feature", custom: false }
+            ),
+          ]
+        : []),
+      ...(isDeclarativeCopilotApp &&
+      featureFlagManager.getBooleanValue(FeatureFlags.AgentSkillsManifest)
+        ? [
+            new TreeViewCommand(
+              localize("teamstoolkit.commandsTreeViewProvider.addSkillTitle"),
+              localize("teamstoolkit.commandsTreeViewProvider.addSkillDescription"),
+              "fx-extension.addSkill",
+              "addSkill",
+              { name: "lightbulb", custom: false }
             ),
           ]
         : []),

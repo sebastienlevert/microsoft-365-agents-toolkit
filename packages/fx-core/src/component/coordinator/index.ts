@@ -78,6 +78,10 @@ const M365Actions = [
 const AzureActions = ["arm/deploy"];
 const needTenantCheckActions = ["botAadApp/create", "aadApp/create", "botFramework/create"];
 
+export const coordinatorDeps = {
+  updateTeamsAppV3ForPublish,
+};
+
 class Coordinator {
   @hooks([
     ErrorContextMW({ component: "Coordinator" }),
@@ -807,10 +811,16 @@ class Coordinator {
         } else {
           const msg = getLocalizedString("core.common.LifecycleComplete.publish", steps, steps);
           const adminPortal = getLocalizedString("plugins.appstudio.adminPortal");
+          const isCopilotAgentPublish = projectModel.publish.driverDefs.some(
+            (def) => def.uses === "copilotAgent/publish"
+          );
+          const portalUrl = isCopilotAgentPublish
+            ? Constants.MICROSOFT_ADMIN_CENTER
+            : Constants.TEAMS_ADMIN_PORTAL;
           if (ctx.platform !== Platform.CLI) {
             ctx.ui?.showMessage("info", msg, false, adminPortal).then((value) => {
               if (value.isOk() && value.value === adminPortal) {
-                void ctx.ui!.openUrl(Constants.TEAMS_ADMIN_PORTAL);
+                void ctx.ui!.openUrl(portalUrl);
               }
             });
           } else {
@@ -892,7 +902,7 @@ class Coordinator {
     if (!inputs[QuestionNames.AppPackagePath]) {
       return err(new InputValidationError("appPackagePath", "undefined"));
     }
-    const updateRes = await updateTeamsAppV3ForPublish(ctx, inputs);
+    const updateRes = await coordinatorDeps.updateTeamsAppV3ForPublish(ctx, inputs);
 
     if (updateRes.isErr()) {
       return err(updateRes.error);

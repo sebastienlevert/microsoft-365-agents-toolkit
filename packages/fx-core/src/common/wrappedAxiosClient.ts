@@ -1,13 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 import axios, {
-  AxiosInstance,
   AxiosError,
-  CreateAxiosDefaults,
+  AxiosInstance,
   AxiosResponse,
+  CreateAxiosDefaults,
   InternalAxiosRequestConfig,
 } from "axios";
-import { TOOLS } from "./globalVars";
+import { TEAMS_GRAPH_API_NAMES } from "../client/teamsGraphClient";
+import { HttpMethod } from "../component/constant/commonConstant";
 import {
   APP_STUDIO_API_NAMES,
   Constants,
@@ -17,11 +18,11 @@ import {
   TelemetryPropertyKey,
   TelemetryPropertyValue,
 } from "../component/driver/teamsApp/utils/telemetry";
-import { TelemetryEvent, TelemetryProperty, TelemetrySuccess } from "./telemetry";
-import { DeveloperPortalAPIFailedSystemError } from "../error/teamsApp";
-import { HttpMethod } from "../component/constant/commonConstant";
-import { getDefaultString } from "./localizeUtils";
 import { MOS3Api, MOS3ApiDefinitions } from "../component/m365/serviceConstant";
+import { DeveloperPortalAPIFailedSystemError } from "../error/teamsApp";
+import { TOOLS } from "./globalVars";
+import { getDefaultString } from "./localizeUtils";
+import { TelemetryEvent, TelemetryProperty, TelemetrySuccess } from "./telemetry";
 
 /**
  * This client will send telemetries to record API request trace
@@ -32,8 +33,10 @@ export class WrappedAxiosClient {
 
     instance.interceptors.request.use((request) => this.onRequest(request));
 
-    // eslint-disable-next-line prettier/prettier
-    instance.interceptors.response.use((response) => this.onResponse(response), (error) => this.onRejected(error));
+    instance.interceptors.response.use(
+      (response) => this.onResponse(response),
+      (error) => this.onRejected(error)
+    );
 
     return instance;
   }
@@ -65,9 +68,7 @@ export class WrappedAxiosClient {
    */
   public static onResponse(response: AxiosResponse) {
     const method = response.request.method;
-    const fullPath = `${(response.request.host as string) ?? ""}${
-      (response.request.path as string) ?? ""
-    }`;
+    const fullPath = `${response.config.baseURL ?? ""}${response.config.url ?? ""}`;
     const apiName = this.convertUrlToApiName(fullPath, method);
 
     const properties: { [key: string]: string } = {
@@ -95,9 +96,7 @@ export class WrappedAxiosClient {
     // socket, etc.) returned to the caller. See AB#37640864.
     try {
       const method = ((error.request?.method as string) ?? "").toString();
-      const fullPath = `${(error.request?.host as string) ?? ""}${
-        (error.request?.path as string) ?? ""
-      }`;
+      const fullPath = `${error.config?.baseURL ?? ""}${error.config?.url ?? ""}`;
       const apiName = this.convertUrlToApiName(fullPath, method);
 
       let requestData: any;
@@ -154,6 +153,13 @@ export class WrappedAxiosClient {
         }: ${(innerError.message as string) ?? ""} `;
         properties[TelemetryProperty.ErrorMessage] = finalMessage;
         properties[TelemetryProperty.MOSTraceId] = tracingId;
+      } else if (eventName === TelemetryEvent.TeamsGraphApi) {
+        const correlationId =
+          error.response?.headers?.["x-correlation-id"] ??
+          error.response?.headers?.["request-id"] ??
+          error.response?.headers?.["x-ms-request-id"] ??
+          "undefined";
+        properties[TelemetryProperty.TeamsGraphTraceId] = correlationId;
       }
 
       TOOLS?.telemetryReporter?.sendTelemetryErrorEvent(eventName, properties);
@@ -330,6 +336,29 @@ export class WrappedAxiosClient {
       } else {
         return `mos_unclassified_${relativePath.replace(/\//g, "_")}`;
       }
+    } else if (this.isTeamsGraphApi(fullPath)) {
+      if (fullPath.match(new RegExp("/api/v1\\.0/apiSecretRegistrations/.*"))) {
+        if (method.toUpperCase() === HttpMethod.GET) {
+          return TEAMS_GRAPH_API_NAMES.GET_API_KEY;
+        }
+        if (method.toUpperCase() === HttpMethod.PATCH) {
+          return TEAMS_GRAPH_API_NAMES.UPDATE_API_KEY;
+        }
+      }
+      if (fullPath.match(new RegExp("/api/v1\\.0/apiSecretRegistrations"))) {
+        return TEAMS_GRAPH_API_NAMES.CREATE_API_KEY;
+      }
+      if (fullPath.match(new RegExp("/api/v1\\.0/oAuthConfigurations/.*"))) {
+        if (method.toUpperCase() === HttpMethod.GET) {
+          return TEAMS_GRAPH_API_NAMES.GET_OAUTH;
+        }
+        if (method.toUpperCase() === HttpMethod.PATCH) {
+          return TEAMS_GRAPH_API_NAMES.UPDATE_OAUTH;
+        }
+      }
+      if (fullPath.match(new RegExp("/api/v1\\.0/oAuthConfigurations"))) {
+        return TEAMS_GRAPH_API_NAMES.CREATE_OAUTH;
+      }
     }
     if (
       fullPath.match(
@@ -411,6 +440,13 @@ export class WrappedAxiosClient {
     return matches != null && matches.length > 0;
   }
 
+  private static isTeamsGraphApi(baseUrl: string): boolean {
+    const regex =
+      /(^https:\/\/)?(teams\.microsoft\.com\/(gcc\/)?api\/platform|gov\.teams\.microsoft\.us\/api\/platform|dod\.teams\.microsoft\.us\/api\/platform)/;
+    const matches = regex.exec(baseUrl);
+    return matches != null && matches.length > 0;
+  }
+
   private static extractMOSPath(fullPath: string): string {
     const mosRegex =
       /(^https:\/\/)?titles\.(prod|gccm)\.mos\.microsoft\.com|(^https:\/\/)?titles\.(gcch|dod)\.mos\.svc\.usgovcloud\.microsoft/;
@@ -419,11 +455,17 @@ export class WrappedAxiosClient {
 
   private static getEventName(
     baseUrl: string
-  ): TelemetryEvent.MOSApi | TelemetryEvent.AppStudioApi | TelemetryEvent.DependencyApi {
+  ):
+    | TelemetryEvent.MOSApi
+    | TelemetryEvent.AppStudioApi
+    | TelemetryEvent.TeamsGraphApi
+    | TelemetryEvent.DependencyApi {
     if (this.isTDPApi(baseUrl)) {
       return TelemetryEvent.AppStudioApi;
     } else if (this.isMOSApi(baseUrl)) {
       return TelemetryEvent.MOSApi;
+    } else if (this.isTeamsGraphApi(baseUrl)) {
+      return TelemetryEvent.TeamsGraphApi;
     } else {
       return TelemetryEvent.DependencyApi;
     }

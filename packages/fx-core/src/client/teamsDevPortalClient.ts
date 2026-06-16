@@ -7,14 +7,19 @@ import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { getResourceServiceEndpoint, HelpLinks, ResourceServiceType } from "../common/constants";
 import { ErrorContextMW, TOOLS } from "../common/globalVars";
 import { getDefaultString, getLocalizedString } from "../common/localizeUtils";
+import { RetryHandler } from "../common/retryHandler";
 import {
-  TelemetryEvent,
-  TelemetryProperty,
   sendTelemetryErrorEvent,
   sendTelemetryEvent,
+  TelemetryEvent,
+  TelemetryProperty,
 } from "../common/telemetry";
 import { WrappedAxiosClient } from "../common/wrappedAxiosClient";
 import { HttpStatusCode } from "../component/constant/commonConstant";
+import { SignInAudienceNotAllowedError } from "../component/driver/aad/error/signInAudienceNotAllowedError";
+import { AADApplication } from "../component/driver/aad/interface/AADApplication";
+import { SignInAudience } from "../component/driver/aad/interface/signInAudience";
+import { aadErrorCode } from "../component/driver/aad/utility/constants";
 import {
   APP_STUDIO_API_NAMES,
   Constants,
@@ -56,33 +61,7 @@ import {
   DeveloperPortalAPIFailedSystemError,
   DeveloperPortalAPIFailedUserError,
 } from "../error/teamsApp";
-import { SignInAudience } from "../component/driver/aad/interface/signInAudience";
 import { IAADDefinition } from "./interfaces/aad/IAADDefinition";
-import { AADApplication } from "../component/driver/aad/interface/AADApplication";
-import { aadErrorCode } from "../component/driver/aad/utility/constants";
-import { SignInAudienceNotAllowedError } from "../component/driver/aad/error/signInAudienceNotAllowedError";
-
-export class RetryHandler {
-  public static RETRIES = 6;
-  public static async Retry<T>(fn: () => Promise<T>): Promise<T | undefined> {
-    let retries = this.RETRIES;
-    let response;
-    while (retries > 0) {
-      retries = retries - 1;
-      try {
-        response = await fn();
-        return response;
-      } catch (e: any) {
-        // Directly throw 404 error, keep trying for other status code e.g. 503 400
-        if (retries <= 0 || e.response?.status == 404 || e.response?.status == 409) {
-          throw e;
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-        }
-      }
-    }
-  }
-}
 
 export class TeamsDevPortalClient {
   regionEndpoint?: string;
@@ -722,11 +701,15 @@ export class TeamsDevPortalClient {
       }
 
       if (result !== undefined) {
-        sendTelemetryEvent("TeamsDevPortalClient", TelemetryEvent.CheckSideloading, {
-          [TelemetryProperty.IsSideloadingAllowed]: result.toString() + "",
-        });
+        teamsDevPortalClientDeps.sendTelemetryEvent(
+          "TeamsDevPortalClient",
+          TelemetryEvent.CheckSideloading,
+          {
+            [TelemetryProperty.IsSideloadingAllowed]: result.toString() + "",
+          }
+        );
       } else {
-        sendTelemetryErrorEvent(
+        teamsDevPortalClientDeps.sendTelemetryErrorEvent(
           "TeamsDevPortalClient",
           TelemetryEvent.CheckSideloading,
           new SystemError(
@@ -745,7 +728,7 @@ export class TeamsDevPortalClient {
 
       return result;
     } catch (error: any) {
-      sendTelemetryErrorEvent(
+      teamsDevPortalClientDeps.sendTelemetryErrorEvent(
         "TeamsDevPortalClient",
         TelemetryEvent.CheckSideloading,
         new CheckSideloadingPermissionFailedError(
@@ -1090,5 +1073,10 @@ export class TeamsDevPortalClient {
     return error;
   }
 }
+
+export const teamsDevPortalClientDeps = {
+  sendTelemetryEvent,
+  sendTelemetryErrorEvent,
+};
 
 export const teamsDevPortalClient = new TeamsDevPortalClient();

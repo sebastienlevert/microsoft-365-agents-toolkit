@@ -2,25 +2,23 @@
 // Licensed under the MIT license.
 
 import { SpecParser } from "@microsoft/m365-spec-parser";
-import { ConfirmConfig, UserError, err, ok } from "@microsoft/teamsfx-api";
+import { ConfirmConfig, err, ok, UserError } from "@microsoft/teamsfx-api";
 import * as chai from "chai";
 import chaiAsPromised from "chai-as-promised";
-import "mocha";
 import { RestoreFn } from "mocked-env";
 import * as sinon from "sinon";
-import { teamsDevPortalClient } from "../../../../src/client/teamsDevPortalClient";
+import { featureFlagManager, FeatureFlags } from "../../../../src";
+import { teamsGraphClient } from "../../../../src/client/teamsGraphClient";
 import { setTools } from "../../../../src/common/globalVars";
 import { UpdateOauthArgs } from "../../../../src/component/driver/oauth/interface/updateOauthArgs";
-import { UpdateOauthDriver } from "../../../../src/component/driver/oauth/update";
+import { oauthUpdateDeps, UpdateOauthDriver } from "../../../../src/component/driver/oauth/update";
 import {
   OauthRegistrationAppType,
   OauthRegistrationTargetAudience,
   TokenExchangeMethodType,
 } from "../../../../src/component/driver/teamsApp/interfaces/OauthRegistration";
-import { MockedLogProvider, MockedUserInteraction } from "../../../plugins/solution/util";
 import { MockedAzureAccountProvider, MockedM365Provider } from "../../../core/utils";
-import * as utiltiy from "../../../../src/component/driver/oauth/utility/utility";
-import { featureFlagManager, FeatureFlags } from "../../../../src";
+import { MockedLogProvider, MockedUserInteraction } from "../../../plugins/solution/util";
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -54,7 +52,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("happy path: update all fields", async () => {
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -68,7 +66,7 @@ describe("UpdateOauthDriver", () => {
       tokenExchangeMethodType: TokenExchangeMethodType.PostRequestBody,
       isPKCEEnabled: true,
     });
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -171,7 +169,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("happy path: update all fields without apiSpecPath", async () => {
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -185,7 +183,7 @@ describe("UpdateOauthDriver", () => {
       tokenExchangeMethodType: TokenExchangeMethodType.PostRequestBody,
       isPKCEEnabled: true,
     });
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -242,7 +240,7 @@ describe("UpdateOauthDriver", () => {
       .stub(featureFlagManager, "getBooleanValue")
       .withArgs(FeatureFlags.KiotaNPMIntegration)
       .returns(false);
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -256,7 +254,7 @@ describe("UpdateOauthDriver", () => {
       tokenExchangeMethodType: TokenExchangeMethodType.PostRequestBody,
       isPKCEEnabled: true,
     });
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -359,7 +357,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("happy path: skip confirm for only clientId changes", async () => {
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
       applicableToApps: OauthRegistrationAppType.AnyApp,
@@ -373,7 +371,7 @@ describe("UpdateOauthDriver", () => {
       tokenExchangeMethodType: TokenExchangeMethodType.BasicAuthorizationHeader,
       isPKCEEnabled: false,
     });
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -406,7 +404,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("happy path: update fields without apiSpecPath and baseUrl", async () => {
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -420,7 +418,7 @@ describe("UpdateOauthDriver", () => {
       tokenExchangeMethodType: TokenExchangeMethodType.PostRequestBody,
       isPKCEEnabled: true,
     });
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -476,7 +474,7 @@ describe("UpdateOauthDriver", () => {
       .stub(featureFlagManager, "getBooleanValue")
       .withArgs(FeatureFlags.KiotaNPMIntegration)
       .returns(false);
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -486,7 +484,7 @@ describe("UpdateOauthDriver", () => {
       identityProvider: "MicrosoftEntra",
       isPKCEEnabled: false,
     } as any);
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -576,7 +574,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("should throw error if try to disable PKCE", async () => {
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -662,7 +660,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("happy path: does not update when no changes", async () => {
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "test",
       targetUrlsShouldStartWith: ["https://test"],
@@ -747,7 +745,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("happy path: should not show confirm when only devtunnel url is different", async () => {
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2.asse.devtunnels.ms"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -763,7 +761,7 @@ describe("UpdateOauthDriver", () => {
       .stub(featureFlagManager, "getBooleanValue")
       .withArgs(FeatureFlags.KiotaNPMIntegration)
       .returns(false);
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "test",
       targetUrlsShouldStartWith: ["https://test.asse.devtunnels.ms"],
@@ -849,7 +847,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("should throw error when user canel", async () => {
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],
@@ -961,8 +959,8 @@ describe("UpdateOauthDriver", () => {
       identityProvider: "Custom",
       configurationId: "mockedRegistrationId",
     };
-    sinon.stub(utiltiy, "getAuthInfo").resolves({} as any);
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves(
+    sinon.stub(oauthUpdateDeps, "getAuthInfo").resolves({} as any);
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves(
       ok({
         identityProvider: "Custom",
       }) as any
@@ -982,8 +980,8 @@ describe("UpdateOauthDriver", () => {
       applicableToApps: "SpecificApp",
       configurationId: "mockedRegistrationId",
     };
-    sinon.stub(utiltiy, "getAuthInfo").resolves({} as any);
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves(ok({}) as any);
+    sinon.stub(oauthUpdateDeps, "getAuthInfo").resolves({} as any);
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves(ok({}) as any);
 
     const result = await updateOauthDriver.execute(args, mockedDriverContext);
     expect(result.result.isErr()).to.be.true;
@@ -1006,8 +1004,8 @@ describe("UpdateOauthDriver", () => {
       clientSecret: 123,
       configurationId: "mockedRegistrationId",
     };
-    sinon.stub(utiltiy, "getAuthInfo").resolves({} as any);
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves(
+    sinon.stub(oauthUpdateDeps, "getAuthInfo").resolves({} as any);
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves(
       ok({
         identityProvider: "Custom",
       }) as any
@@ -1208,7 +1206,7 @@ describe("UpdateOauthDriver", () => {
   });
 
   it("should not update if tokenRefreshEndpoint and scopes are undefined", async () => {
-    sinon.stub(teamsDevPortalClient, "updateOauthRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateOauthRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: OauthRegistrationAppType.SpecificApp,
@@ -1221,7 +1219,7 @@ describe("UpdateOauthDriver", () => {
       scopes: ["mockedScope"],
       isPKCEEnabled: true,
     });
-    sinon.stub(teamsDevPortalClient, "getOauthRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getOauthRegistrationById").resolves({
       oAuthConfigId: "mockedRegistrationId",
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test"],

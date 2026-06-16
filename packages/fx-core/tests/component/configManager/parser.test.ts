@@ -7,7 +7,6 @@
 
 import chai from "chai";
 import path from "path";
-import { describe, it, before, after, beforeEach, afterEach } from "mocha";
 import sinon from "sinon";
 import { YamlParser } from "../../../src/component/configManager/parser";
 import fs from "fs-extra";
@@ -234,6 +233,34 @@ describe("v3 yaml parser", () => {
           result.value.provision.driverDefs[0].writeToEnvironmentFile &&
           result.value.provision.driverDefs[0].writeToEnvironmentFile["botId"] === "XXX"
       );
+    });
+  });
+
+  describe(`when parsing yml with dcr/register action`, () => {
+    it("should return ok for valid dcr/register", async () => {
+      const parser = new YamlParser();
+      const result = await parser.parse(
+        path.resolve(__dirname, "testing_data", "valid_dcr_register.yml"),
+        true
+      );
+      assert(result.isOk());
+      if (result.isOk()) {
+        const def = result.value.provision?.driverDefs[0];
+        chai.expect(def?.uses).to.equal("dcr/register");
+        chai
+          .expect((def?.with as any)?.wellKnownAuthorizationServer)
+          .to.equal("https://example.com/.well-known/oauth-authorization-server");
+        chai.expect(def?.writeToEnvironmentFile?.configurationId).to.equal("DCR_REGISTRATION_ID");
+      }
+    });
+
+    it("should return InvalidYamlSchemaError when wellKnownAuthorizationServer is missing", async () => {
+      const parser = new YamlParser();
+      const result = await parser.parse(
+        path.resolve(__dirname, "testing_data", "invalid_dcr_register_missing_well_known.yml"),
+        true
+      );
+      assert(result.isErr() && result.error.name === "InvalidYamlSchemaError");
     });
   });
 

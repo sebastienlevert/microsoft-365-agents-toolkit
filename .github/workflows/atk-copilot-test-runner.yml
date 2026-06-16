@@ -1,0 +1,302 @@
+name: ATK Copilot Test Runner
+
+# PURE EXECUTOR: VSIX acquisition + headless test execution + artifact upload.
+# Triggered by atk-copilot-test-generator.yml (via gh workflow run) or manually.
+#
+# Architecture: @vscode/test-electron (activates ATK extension + Mocha)
+#               + Playwright CDP (takes real screenshots from outside extension host)
+#
+# Flow:
+#  1. Download or build the ATK VSIX.
+#  2. Run the test script specified by the 'script' input (sets TEST_FILE env var).
+#  3. Generate GIF from screenshots.
+#  4. Upload atk-test-results-issue-N artifact (results.json, screenshots, test.log, GIF, run-status.txt).
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number (used for artifact naming)'
+        required: true
+        type: string
+      script:
+        description: 'Test file basename without .test.ts (sets TEST_FILE env var)'
+        required: true
+        type: string
+
+  workflow_call:
+    inputs:
+      issue_number:
+        required: true
+        type: string
+      script:
+        required: true
+        type: string
+
+concurrency:
+  group: atk-copilot-test-runner-${{ inputs.issue_number || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  TEST_OUTPUT_DIR: /tmp/atk-test-output
+
+jobs:
+  run-atk-test:
+    name: ATK Test Runner (issue #${{ inputs.issue_number }} script=${{ inputs.script }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      # ── VSIX acquisition: resolve or trigger early ────────────────────────
+      # Runs right after checkout so CD pipeline starts ASAP while setup steps run.
+      # Decision tree:
+      #   1. Find most recent successful 'release' artifact on this branch.
+      #   2. No VSIX-affecting diff since that artifact → reuse it.
+      #   3. Diff detected OR no artifact → dispatch CD pipeline (alpha, skip markdown).
+      # VSIX-affecting paths: packages/vscode-extension, packages/fx-core,
+      #   packages/vscode-ui, packages/api
+      - name: Resolve or trigger VSIX
+        id: vsix-gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          HEAD_BRANCH="${{ github.head_ref || github.ref_name }}"
+          CURRENT_SHA="${{ github.sha }}"
+          REPO="${{ github.repository }}"
+          echo "Branch: $HEAD_BRANCH  SHA: $CURRENT_SHA"
+
+          # Query CD workflow runs directly on this branch (avoids per_page limit on
+          # the global artifacts endpoint which has 700+ entries and buries ours)
+          CD_RUN_JSON=$(gh api \
+            "repos/$REPO/actions/workflows/cd.yml/runs?branch=${HEAD_BRANCH}&status=success&per_page=5" \
+            2>/dev/null \
+            | jq '.workflow_runs | sort_by(.created_at) | reverse | .[0]') || CD_RUN_JSON=""
+
+          ARTIFACT_JSON=""
+          if [ -n "$CD_RUN_JSON" ] && [ "$CD_RUN_JSON" != "null" ]; then
+            CD_RUN_ID=$(echo "$CD_RUN_JSON" | jq -r '.id')
+            ARTIFACT_JSON=$(gh api "repos/$REPO/actions/runs/$CD_RUN_ID/artifacts" \
+              2>/dev/null \
+              | jq '[.artifacts[] | select(.name == "release" and .expired == false)] | .[0]') || ARTIFACT_JSON=""
+          fi
+
+          if [ -n "$ARTIFACT_JSON" ] && [ "$ARTIFACT_JSON" != "null" ]; then
+            ARTIFACT_SHA=$(echo "$CD_RUN_JSON" | jq -r '.head_sha')
+            ARTIFACT_RUN_ID=$CD_RUN_ID
+            echo "Found artifact from CD run $ARTIFACT_RUN_ID at commit $ARTIFACT_SHA"
+
+            # Guard: artifact SHA must be reachable in local git history
+            CHANGED=0
+            if [ "$ARTIFACT_SHA" = "$CURRENT_SHA" ]; then
+              echo "Same commit — will reuse."
+            elif ! git cat-file -e "${ARTIFACT_SHA}^{commit}" 2>/dev/null; then
+              echo "Artifact SHA $ARTIFACT_SHA not reachable — treating as changed."
+              CHANGED=1
+            else
+              VSIX_PATHS="packages/vscode-extension packages/fx-core packages/vscode-ui packages/api"
+              CHANGED=$(git diff --name-only "$ARTIFACT_SHA" "$CURRENT_SHA" -- $VSIX_PATHS 2>/dev/null | wc -l | tr -d ' ')
+              echo "Files changed in VSIX paths since $ARTIFACT_SHA: $CHANGED"
+            fi
+
+            if [ "$CHANGED" = "0" ]; then
+              echo "No VSIX-affecting changes — reusing artifact from run $ARTIFACT_RUN_ID."
+              echo "mode=reuse"          >> $GITHUB_OUTPUT
+              echo "run_id=$ARTIFACT_RUN_ID" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "VSIX-affecting changes ($CHANGED files) — dispatching fresh CD build."
+          else
+            echo "No successful release artifact on branch '$HEAD_BRANCH' — dispatching CD."
+          fi
+
+          # Dispatch CD pipeline: alpha build, skip markdown check, feature-branch override
+          DISPATCH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Dispatching cd.yml at $DISPATCH_TIME..."
+          gh workflow run cd.yml \
+            --repo "$REPO" \
+            --ref "$HEAD_BRANCH" \
+            -f preid=alpha \
+            -f SkipBranchCheck=true \
+            -f skipmarkdownandvulnerabilitycheck=true \
+            -f pkgs=vscode
+
+          sleep 15
+          CD_RUN_ID=$(gh run list \
+            --repo "$REPO" \
+            --workflow cd.yml \
+            --branch "$HEAD_BRANCH" \
+            --event workflow_dispatch \
+            --limit 10 \
+            --json databaseId,createdAt \
+            | jq --arg t "$DISPATCH_TIME" '
+              [.[] | select(.createdAt >= $t)] | sort_by(.createdAt) | reverse | .[0].databaseId
+            ')
+
+          if [ -z "$CD_RUN_ID" ] || [ "$CD_RUN_ID" = "null" ]; then
+            echo "::error::Could not find the dispatched CD run (checked runs after $DISPATCH_TIME)."
+            exit 1
+          fi
+          echo "CD run dispatched: $CD_RUN_ID"
+          echo "mode=cd"              >> $GITHUB_OUTPUT
+          echo "cd_run_id=$CD_RUN_ID" >> $GITHUB_OUTPUT
+
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@9
+
+      - name: Install copilot-test dependencies
+        working-directory: packages/tests/copilot-test
+        run: npm install --legacy-peer-deps
+
+      - name: Install system deps for headless VSCode + Playwright CDP
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            xvfb x11-utils \
+            libgtk-3-0 libxss1 libnss3 libxtst6 libxrandr2 libgbm1 libxkbcommon0 libdrm2 \
+            libsecret-1-0 libglib2.0-0 libpulse0 \
+            || true
+          # libasound varies by Ubuntu release
+          sudo apt-get install -y libasound2t64 2>/dev/null || sudo apt-get install -y libasound2 2>/dev/null || true
+
+      - name: Install Playwright Chromium (for CDP screenshots)
+        working-directory: packages/tests/copilot-test
+        run: |
+          npx playwright install chromium --with-deps 2>&1 || \
+          npx playwright install chromium 2>&1 || \
+          echo "::warning::Playwright browser install had warnings"
+
+      - name: Wait for VSIX and download
+        id: vsix-ready
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          MODE="${{ steps.vsix-gate.outputs.mode }}"
+          echo "VSIX mode: $MODE"
+
+          if [ "$MODE" = "reuse" ]; then
+            RUN_ID="${{ steps.vsix-gate.outputs.run_id }}"
+            echo "Downloading artifact from run $RUN_ID..."
+            gh run download "$RUN_ID" --repo "$REPO" --name release --dir /tmp/vsix-download
+          else
+            CD_RUN_ID="${{ steps.vsix-gate.outputs.cd_run_id }}"
+            echo "Waiting for CD run $CD_RUN_ID to complete (up to 60 min)..."
+            DEADLINE=$((SECONDS + 3600))
+            while [ $SECONDS -lt $DEADLINE ]; do
+              STATUS=$(gh run view "$CD_RUN_ID" --repo "$REPO" --json status --jq '.status' 2>/dev/null || echo "unknown")
+              echo "  $(date -u +%H:%M:%S) status=$STATUS"
+              [ "$STATUS" = "completed" ] && break
+              sleep 60
+            done
+
+            CONCLUSION=$(gh run view "$CD_RUN_ID" --repo "$REPO" --json conclusion --jq '.conclusion' 2>/dev/null || echo "unknown")
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "::error::CD run $CD_RUN_ID finished with conclusion=$CONCLUSION"
+              exit 1
+            fi
+            echo "CD complete — downloading artifact..."
+            gh run download "$CD_RUN_ID" --repo "$REPO" --name release --dir /tmp/vsix-download
+          fi
+
+          VSIX_FILE=$(find /tmp/vsix-download -name "*.vsix" | head -1)
+          if [ -z "$VSIX_FILE" ]; then
+            echo "::error::No .vsix found in downloaded artifact."
+            exit 1
+          fi
+          echo "Extracting: $VSIX_FILE ($(du -sh "$VSIX_FILE" | cut -f1))"
+          mkdir -p /tmp/atk-ext
+          unzip -q -o "$VSIX_FILE" 'extension/*' -d /tmp/atk-ext
+          EXT_DIR="/tmp/atk-ext/extension"
+          VER=$(python3 -c "import json; d=json.load(open('$EXT_DIR/package.json')); print(d.get('version','?'))" 2>/dev/null || echo '?')
+          echo "ATK_EXT_PATH=$EXT_DIR" >> $GITHUB_ENV
+          echo "TEMPLATE_VERSION=local" >> $GITHUB_ENV
+          echo "VSIX ready: ATK v$VER at $EXT_DIR"
+
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -ac -screen 0 1920x1080x24 &
+          sleep 3
+          echo "DISPLAY=:99.0" >> $GITHUB_ENV
+
+      - name: Prepare output directory
+        run: mkdir -p "$TEST_OUTPUT_DIR/screenshots" "$TEST_OUTPUT_DIR/projects"
+
+      - name: Run test
+        id: run-test
+        env:
+          TEST_OUTPUT_DIR: /tmp/atk-test-output
+          DISPLAY: ":99.0"
+          ATK_EXT_PATH: ${{ env.ATK_EXT_PATH }}
+        run: |
+          cd packages/tests/copilot-test
+          export TEST_FILE="${{ inputs.script }}"
+          echo "Running test: TEST_FILE=$TEST_FILE"
+
+          ./node_modules/.bin/ts-node --project tsconfig.json src/runTest.ts \
+            2>&1 | tee "$TEST_OUTPUT_DIR/test.log"
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          # Write machine-readable status for generator to consume from artifact
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "passed" > "$TEST_OUTPUT_DIR/run-status.txt"
+          elif [ -f "$TEST_OUTPUT_DIR/results.json" ]; then
+            echo "test_failed" > "$TEST_OUTPUT_DIR/run-status.txt"
+          else
+            echo "infra_failed" > "$TEST_OUTPUT_DIR/run-status.txt"
+          fi
+
+          exit $EXIT_CODE
+
+
+      - name: Generate screenshots GIF (after CLI run)
+        if: always()
+        id: gif
+        run: |
+          pip3 install --quiet Pillow 2>/dev/null || true
+          mapfile -t SHOTS < <(ls "$TEST_OUTPUT_DIR/screenshots/"*.png 2>/dev/null | sort)
+          if [ ${#SHOTS[@]} -eq 0 ]; then echo "gif_path=" >> $GITHUB_OUTPUT; exit 0; fi
+          GIF_PATH="$TEST_OUTPUT_DIR/test-run.gif"
+          python3 << 'PYEOF'
+          import glob, os
+          from PIL import Image
+          shots = sorted(glob.glob(os.environ["TEST_OUTPUT_DIR"] + "/screenshots/*.png"))
+          frames = []
+          for p in shots:
+              try:
+                  img = Image.open(p).convert("RGBA")
+                  if img.width > 1280:
+                      img = img.resize((1280, int(img.height * 1280 / img.width)), Image.LANCZOS)
+                  frames.append(img.convert("P", palette=Image.ADAPTIVE, dither=Image.Dither.NONE))
+              except Exception as e:
+                  print(f"Skip {p}: {e}")
+          if frames:
+              out = os.environ["TEST_OUTPUT_DIR"] + "/test-run.gif"
+              frames[0].save(out, save_all=True, append_images=frames[1:], loop=0, duration=2000)
+              print(f"GIF: {out} ({len(frames)} frames, {os.path.getsize(out)//1024}KB)")
+          PYEOF
+          [ -f "$GIF_PATH" ] && echo "gif_path=$GIF_PATH" >> $GITHUB_OUTPUT || echo "gif_path=" >> $GITHUB_OUTPUT
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atk-test-results-issue-${{ inputs.issue_number }}
+          path: ${{ env.TEST_OUTPUT_DIR }}/
+          retention-days: 14
+          if-no-files-found: warn
+

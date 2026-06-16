@@ -8,7 +8,9 @@ import fs from "fs-extra";
 import { merge } from "lodash";
 import { Service } from "typedi";
 import { GraphClient } from "../../../client/graphClient";
+import { SovereignCloudEnvironment } from "../../../common/accountUtils";
 import { GraphTeamsAppCatalogReadWriteScopes } from "../../../common/constants";
+import { FeatureFlagName } from "../../../common/featureFlags";
 import { getLocalizedString } from "../../../common/localizeUtils";
 import { FileNotFoundError, InvalidActionInputError, UserCancelError } from "../../../error/common";
 import { getAbsolutePath } from "../../utils/common";
@@ -17,16 +19,15 @@ import { ExecutionResult, StepDriver } from "../interface/stepDriver";
 import { addStartAndEndTelemetry } from "../middleware/addStartAndEndTelemetry";
 import { WrapDriverContext } from "../util/wrapUtil";
 import { Constants } from "./constants";
-import { PublishAppPackageArgs } from "./interfaces/PublishAppPackageArgs";
-import { TelemetryPropertyKey } from "./utils/telemetry";
-import { ODRProvider } from "../../utils/odrProvider";
-import { exec } from "child_process";
-import { promisify } from "util";
-import { LocalMcpPrefix } from "../../constants";
 import { AppStudioError } from "./errors";
+import { PublishAppPackageArgs } from "./interfaces/PublishAppPackageArgs";
 import { AppStudioResultFactory } from "./results";
-import { FeatureFlagName } from "../../../common/featureFlags";
-import { SovereignCloudEnvironment } from "../../../common/accountUtils";
+import { verifyLocalMCPPluginCerts } from "./utils/McpCertVerification";
+import { TelemetryPropertyKey } from "./utils/telemetry";
+
+export const publishAppPackageDeps = {
+  verifyLocalMCPPluginCerts,
+};
 
 export const actionName = "teamsApp/publishAppPackage";
 
@@ -120,7 +121,7 @@ export class PublishAppPackageDriver implements StepDriver {
           for (const action of declarativeAgentManifest.actions) {
             const actionFile = zipEntries.find((x) => x.entryName === action.file);
             if (actionFile) {
-              const isValid = await this.verifyLocalMCPPluginCerts(actionFile);
+              const isValid = await publishAppPackageDeps.verifyLocalMCPPluginCerts(actionFile);
               if (!isValid) {
                 const message = getLocalizedString(
                   "driver.teamsApp.error.localMcpCertVerificationFailed"
@@ -247,68 +248,6 @@ export class PublishAppPackageDriver implements StepDriver {
       );
     } else {
       return ok(undefined);
-    }
-  }
-
-  private async verifyLocalMCPPluginCerts(pluginFile: AdmZip.IZipEntry): Promise<boolean> {
-    const pluginContent = pluginFile.getData().toString();
-    const pluginManifest = JSON.parse(pluginContent);
-    if (!pluginManifest.runtimes || !Array.isArray(pluginManifest.runtimes)) {
-      return true;
-    }
-
-    const servers = await ODRProvider.listServers();
-
-    let allValidCerts = true;
-
-    const localPluginRuntimes = pluginManifest.runtimes.filter(
-      (runtime: { type: string }) => runtime.type === "LocalPlugin"
-    );
-
-    for (const runtime of localPluginRuntimes) {
-      const localEndpoint = (runtime as { spec?: { local_endpoint?: string } }).spec
-        ?.local_endpoint;
-
-      if (!localEndpoint || !localEndpoint.startsWith(LocalMcpPrefix)) {
-        continue;
-      }
-
-      const mcpIdentifier = localEndpoint.substring(LocalMcpPrefix.length);
-      const serverInfo = servers.find((x) => x.identifier === mcpIdentifier);
-
-      if (!serverInfo) {
-        continue;
-      }
-
-      const valid = await this.verifyPackageFamilyCertIsValid(serverInfo.packageFamily);
-
-      if (!valid) {
-        allValidCerts = false;
-        break;
-      }
-    }
-
-    return allValidCerts;
-  }
-
-  private async verifyPackageFamilyCertIsValid(packageName: string): Promise<boolean> {
-    const execAsync = promisify(exec);
-    const command = `powershell.exe -Command "& Get-AppxPackage | where { $_.PackageFamilyName -eq '${packageName}' } | select { $_.SignatureKind }"`;
-
-    try {
-      const { stdout } = await execAsync(command);
-
-      if (!stdout) {
-        return false;
-      }
-
-      if (stdout.toLowerCase().includes("developer")) {
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error("Unable to get cert info for package name", error);
-      return false;
     }
   }
 }

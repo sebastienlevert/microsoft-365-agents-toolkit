@@ -4,8 +4,8 @@
 import { hooks } from "@feathersjs/hooks";
 import { SystemError, UserError, err, ok } from "@microsoft/teamsfx-api";
 import { Service } from "typedi";
-import { teamsDevPortalClient } from "../../../client/teamsDevPortalClient";
-import { AppStudioScopes } from "../../../common/constants";
+import { teamsGraphClient } from "../../../client/teamsGraphClient";
+import { TeamsGraphScopes } from "../../../common/constants";
 import { getLocalizedString } from "../../../common/localizeUtils";
 import { InvalidActionInputError, assembleError } from "../../../error/common";
 import { DriverContext } from "../interface/commonArgs";
@@ -17,14 +17,19 @@ import {
   OauthRegistrationTargetAudience,
   TokenExchangeMethodType,
 } from "../teamsApp/interfaces/OauthRegistration";
+import { OauthDisablePKCEError } from "./error/oauthDisablePKCEError";
 import { OauthNameTooLongError } from "./error/oauthNameTooLong";
 import { UpdateOauthArgs } from "./interface/updateOauthArgs";
 import { logMessageKeys } from "./utility/constants";
-import { getAuthInfo, OauthInfo, validateSecret, validateUrl } from "./utility/utility";
-import { OauthDisablePKCEError } from "./error/oauthDisablePKCEError";
+import { OauthInfo, getAuthInfo, validateSecret, validateUrl } from "./utility/utility";
 
 const actionName = "oauth/update"; // DO NOT MODIFY the name
 const helpLink = "https://aka.ms/teamsfx-actions/oauth-update";
+
+export const oauthUpdateDeps = {
+  getAuthInfo,
+  assembleError,
+};
 
 @Service(actionName)
 export class UpdateOauthDriver implements StepDriver {
@@ -49,16 +54,16 @@ export class UpdateOauthDriver implements StepDriver {
         throw new InvalidActionInputError(actionName, invalidParameters, helpLink);
       }
 
-      const authInfo = await getAuthInfo(args, context, actionName);
+      const authInfo = await oauthUpdateDeps.getAuthInfo(args, context, actionName);
 
       const appStudioTokenRes = await context.m365TokenProvider.getAccessToken({
-        scopes: AppStudioScopes(),
+        scopes: TeamsGraphScopes(),
       });
       if (appStudioTokenRes.isErr()) {
         throw appStudioTokenRes.error;
       }
       const appStudioToken = appStudioTokenRes.value;
-      const getOauthRes = await teamsDevPortalClient.getOauthRegistrationById(
+      const getOauthRes = await teamsGraphClient.getOauthRegistrationById(
         appStudioToken,
         args.configurationId
       );
@@ -124,11 +129,7 @@ export class UpdateOauthDriver implements StepDriver {
       }
 
       const oauth = this.mapArgsToOauthRegistration(args, authInfo, isCustomIdentityProvider);
-      await teamsDevPortalClient.updateOauthRegistration(
-        appStudioToken,
-        oauth,
-        args.configurationId
-      );
+      await teamsGraphClient.updateOauthRegistration(appStudioToken, oauth, args.configurationId);
 
       void context.ui!.showMessage(
         "info",
@@ -159,7 +160,7 @@ export class UpdateOauthDriver implements StepDriver {
         getLocalizedString(logMessageKeys.failedExecuteDriver, actionName, message)
       );
       return {
-        result: err(assembleError(error as Error, actionName)),
+        result: err(oauthUpdateDeps.assembleError(error as Error, actionName)),
         summaries: summaries,
       };
     }

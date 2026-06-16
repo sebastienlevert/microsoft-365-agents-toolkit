@@ -1,22 +1,18 @@
-import "mocha";
-import { assert } from "chai";
-import * as sinon from "sinon";
 import {
-  manifestUtils,
-  ManifestUtils,
-  SharePointAppId,
-} from "../../../../src/component/driver/teamsApp/utils/ManifestUtils";
-import fs from "fs-extra";
-import path from "path";
-import {
-  TeamsAppManifest,
+  err,
+  IBot,
   InputsWithProjectPath,
+  ManifestCapability,
   ok,
   Platform,
-  ManifestCapability,
-  IBot,
+  TeamsAppManifest,
   UserError,
 } from "@microsoft/teamsfx-api";
+import { assert } from "chai";
+import fs from "fs-extra";
+import mockedEnv, { RestoreFn } from "mocked-env";
+import path from "path";
+import * as sinon from "sinon";
 import {
   getBotsTplBasedOnVersion,
   getBotsTplExistingAppBasedOnVersion,
@@ -26,8 +22,13 @@ import {
   getConfigurableTabsTplExistingAppBasedOnVersion,
 } from "../../../../src/component/driver/teamsApp/constants";
 import { AppStudioError } from "../../../../src/component/driver/teamsApp/errors";
+import {
+  manifestUtils,
+  ManifestUtils,
+  manifestUtilsDeps,
+  SharePointAppId,
+} from "../../../../src/component/driver/teamsApp/utils/ManifestUtils";
 import { FileNotFoundError, JSONSyntaxError, ReadFileError } from "../../../../src/error";
-import mockedEnv, { RestoreFn } from "mocked-env";
 
 const latestManifestVersion = "1.17";
 const oldManifestVersion = "1.16";
@@ -575,6 +576,75 @@ describe("resolveLocFile", () => {
         (JSON.parse(locFile.value) as TeamsAppManifest).name.short,
         "shortname - hello world"
       );
+    }
+  });
+
+  it("resolves $[file(...)] when context is provided", async () => {
+    sandbox.stub(fs, "pathExists").callsFake(async (filePath) => {
+      return filePath === "loc_file_path" || filePath === "instruction.txt";
+    });
+    sandbox.stub(fs, "readFile").callsFake(((filePath: number | fs.PathLike) => {
+      if (filePath === "loc_file_path") {
+        return Promise.resolve(
+          JSON.stringify({
+            name: {
+              short: "$[file('instruction.txt')]",
+            },
+          })
+        );
+      }
+      return Promise.resolve("localized short name");
+    }) as any);
+
+    const context: any = {
+      platform: Platform.VSCode,
+      logProvider: {
+        error: () => {},
+      },
+      telemetryReporter: {
+        sendTelemetryEvent: () => {},
+      },
+    };
+
+    const locFile = await manifestUtils.resolveLocFile("loc_file_path", context);
+
+    assert.isTrue(locFile.isOk());
+    if (locFile.isOk()) {
+      assert.equal(
+        (JSON.parse(locFile.value) as TeamsAppManifest).name.short,
+        "localized short name"
+      );
+    }
+  });
+
+  it("returns expansion error when $[file(...)] resolution fails", async () => {
+    sandbox.stub(fs, "pathExists").resolves(true);
+    sandbox.stub(fs, "readFile").resolves(
+      JSON.stringify({
+        name: {
+          short: "$[file('instruction.txt')]",
+        },
+      }) as any
+    );
+
+    const expansionError = new UserError("source", "name", "message");
+    sandbox.stub(manifestUtilsDeps, "expandVariableWithFunction").resolves(err(expansionError));
+
+    const context: any = {
+      platform: Platform.VSCode,
+      logProvider: {
+        error: () => {},
+      },
+      telemetryReporter: {
+        sendTelemetryEvent: () => {},
+      },
+    };
+
+    const locFile = await manifestUtils.resolveLocFile("loc_file_path", context);
+
+    assert.isTrue(locFile.isErr());
+    if (locFile.isErr()) {
+      assert.equal(locFile.error, expansionError);
     }
   });
 });

@@ -47,6 +47,13 @@ export const daNode = {
             data: "declarative-agent-with-graph-connector",
           },
           {
+            id: "skill",
+            label: "template.createProjectQuestion.addSkill.label",
+            detail: "template.createProjectQuestion.addSkill.detail",
+            data: "declarative-agent-with-skill",
+            featureFlag: "TEAMSFX_AGENT_SKILLS",
+          },
+          {
             id: "type-spec",
             label: "template.createProjectQuestion.apiPlugin.typeSpec.label",
             detail: "template.createProjectQuestion.apiPlugin.typeSpec.detail",
@@ -88,7 +95,6 @@ export const daNode = {
                 label: "template.createProjectQuestion.mcpForDa.label",
                 detail: "template.createProjectQuestion.mcpForDa.detail",
                 data: "declarative-agent-with-action-from-mcp",
-                featureFlag: "TEAMSFX_MCP_FOR_DA",
               },
             ],
           },

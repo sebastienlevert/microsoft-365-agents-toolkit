@@ -17,6 +17,7 @@ import FormData from "form-data";
 import fs from "fs-extra";
 import https from "https";
 import stripBom from "strip-bom";
+import { getResourceServiceEndpoint, ResourceServiceType } from "../../common/constants";
 import { ErrorContextMW, TOOLS } from "../../common/globalVars";
 import { getDefaultString, getLocalizedString } from "../../common/localizeUtils";
 import { IsDeclarativeAgentManifest } from "../../common/projectTypeChecker";
@@ -35,10 +36,16 @@ import { AppUser } from "../driver/teamsApp/interfaces/appdefinitions/appUser";
 import { advancedDASettingUrl, M365HelpLink } from "./constants";
 import { NotExtendedToM365Error } from "./errors";
 import { M365AppDefinition, M365AppEntity } from "./interface";
-import { getResourceServiceEndpoint, ResourceServiceType } from "../../common/constants";
+
+export const packageServiceDeps = {
+  waitSeconds,
+};
 
 const M365ErrorSource = "M365";
 const M365ErrorComponent = "PackageService";
+
+// MOS/Titles API maximum upload size (10 MB)
+const MOS_MAX_PACKAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export enum AppScope {
   Personal = "Personal",
@@ -72,7 +79,6 @@ export class PackageService {
 
   public constructor(endpoint: string, logger?: LogProvider) {
     this.axiosInstance = WrappedAxiosClient.create({
-      timeout: 30000,
       httpsAgent: new https.Agent({ keepAlive: true }),
     });
     this.initEndpoint = endpoint;
@@ -91,7 +97,7 @@ export class PackageService {
         this.logger?.warning(
           `Request failed with ${e.code ?? e.message}, retrying (${i + 1}/${retries})...`
         );
-        await waitSeconds(1);
+        await packageServiceDeps.waitSeconds(1);
       }
     }
     throw new Error("Unexpected: retry loop exited");
@@ -126,6 +132,7 @@ export class PackageService {
   @hooks([ErrorContextMW({ source: M365ErrorSource, component: M365ErrorComponent })])
   public async sideLoadXmlManifest(token: string, manifestPath: string): Promise<[string, string]> {
     try {
+      this.validatePackageSize(manifestPath);
       const data = await fs.readFile(manifestPath);
       const content = new FormData();
       content.append("package", data);
@@ -170,7 +177,7 @@ export class PackageService {
             this.logger?.verbose("Sideloading done.");
             return [titleId, appId];
           } else {
-            await waitSeconds(2);
+            await packageServiceDeps.waitSeconds(2);
           }
         } while (true);
       } else {
@@ -194,6 +201,7 @@ export class PackageService {
     packagePath: string,
     appScope = AppScope.Personal
   ): Promise<[string, string, string]> {
+    this.validatePackageSize(packagePath);
     const manifest = this.getManifestFromZip(packagePath);
     if (!manifest) {
       throw new Error("Invalid app package zip. manifest.json is missing");
@@ -280,7 +288,7 @@ export class PackageService {
           this.logger?.verbose("Sideloading done.");
           return [titleId, appId];
         } else {
-          await waitSeconds(7);
+          await packageServiceDeps.waitSeconds(7);
         }
       } while (true);
     } catch (error: any) {
@@ -293,6 +301,29 @@ export class PackageService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Publish agent using Builder API (sideLoadingV2) and get share link for shared scope.
+   * Returns [titleId, appId, shareLink]
+   */
+  @hooks([ErrorContextMW({ source: M365ErrorSource, component: M365ErrorComponent })])
+  public async publishAgent(
+    token: string,
+    packagePath: string,
+    appScope: AppScope = AppScope.Personal
+  ): Promise<[string, string, string]> {
+    const res = await this.sideLoadingV2(token, packagePath, appScope);
+    let shareLink = "";
+    if (appScope.toLowerCase() === AppScope.Shared.toLowerCase()) {
+      shareLink = await this.getShareLink(token, res[0]);
+    }
+    sendTelemetryEvent(Component.core, TelemetryEvent.MosSideloadEnd, {
+      [TelemetryProperty.MosTitleId]: res[0],
+      [TelemetryProperty.MosAppId]: res[1],
+      [TelemetryProperty.IsDeclarativeAgent]: "true",
+    });
+    return [res[0], res[1], shareLink];
   }
 
   @hooks([ErrorContextMW({ source: M365ErrorSource, component: M365ErrorComponent })])
@@ -351,7 +382,7 @@ export class PackageService {
           this.logger?.verbose("Sideloading done.");
           return [titleId, appId];
         } else {
-          await waitSeconds(7);
+          await packageServiceDeps.waitSeconds(7);
         }
       } while (true);
     } catch (error: any) {
@@ -547,7 +578,7 @@ export class PackageService {
       // Short nextInterval means cache is refreshing
       if (ensureUpToDate && nextInterval > 0 && nextInterval < 10) {
         this.logger?.debug(`Active experiences is refreshing, wait for ${nextInterval} seconds.`);
-        await waitSeconds(nextInterval);
+        await packageServiceDeps.waitSeconds(nextInterval);
         response = await this.axiosInstance.get("/catalog/v1/users/uitypes", {
           baseURL: serviceUrl,
           headers: {
@@ -902,6 +933,24 @@ export class PackageService {
     } catch (error: any) {
       this.logger?.debug(`Invalid input zip ${path}. ${error.message as string}`);
       this.logger?.warning(`Please make sure input path is a valid app package zip. ${path}`);
+    }
+  }
+
+  private validatePackageSize(packagePath: string) {
+    const stats = fs.statSync(packagePath);
+    if (stats.size > MOS_MAX_PACKAGE_SIZE_BYTES) {
+      const actualMB = (stats.size / (1024 * 1024)).toFixed(2);
+      const maxMB = (MOS_MAX_PACKAGE_SIZE_BYTES / (1024 * 1024)).toFixed(2);
+      throw new UserError({
+        source: M365ErrorSource,
+        name: "AppPackageSizeExceeded",
+        message: getDefaultString("error.m365.packageService.packageSizeExceeded", actualMB, maxMB),
+        displayMessage: getLocalizedString(
+          "error.m365.packageService.packageSizeExceeded",
+          actualMB,
+          maxMB
+        ),
+      });
     }
   }
 

@@ -5,10 +5,9 @@ import { SpecParser } from "@microsoft/m365-spec-parser";
 import { ConfirmConfig, UserError, err, ok } from "@microsoft/teamsfx-api";
 import * as chai from "chai";
 import chaiAsPromised from "chai-as-promised";
-import "mocha";
 import { RestoreFn } from "mocked-env";
 import * as sinon from "sinon";
-import { teamsDevPortalClient } from "../../../../src/client/teamsDevPortalClient";
+import { teamsGraphClient } from "../../../../src/client/teamsGraphClient";
 import { setTools } from "../../../../src/common/globalVars";
 import { UpdateApiKeyArgs } from "../../../../src/component/driver/apiKey/interface/updateApiKeyArgs";
 import { UpdateApiKeyDriver } from "../../../../src/component/driver/apiKey/update";
@@ -56,14 +55,14 @@ describe("UpdateApiKeyDriver", () => {
       .stub(featureFlagManager, "getBooleanValue")
       .withArgs(FeatureFlags.KiotaNPMIntegration)
       .returns(false);
-    sinon.stub(teamsDevPortalClient, "updateApiKeyRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateApiKeyRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: ApiSecretRegistrationAppType.SpecificApp,
       targetAudience: ApiSecretRegistrationTargetAudience.HomeTenant,
       specificAppId: "mockedAppId",
     });
-    sinon.stub(teamsDevPortalClient, "getApiKeyRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getApiKeyRegistrationById").resolves({
       id: "mockedRegistrationId",
       description: "mockedDescription",
       clientSecrets: [],
@@ -132,14 +131,14 @@ describe("UpdateApiKeyDriver", () => {
   });
 
   it("happy path: update all fields with baseURL", async () => {
-    sinon.stub(teamsDevPortalClient, "updateApiKeyRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateApiKeyRegistration").resolves({
       description: "mockedDescription",
       targetUrlsShouldStartWith: ["https://test2"],
       applicableToApps: ApiSecretRegistrationAppType.SpecificApp,
       targetAudience: ApiSecretRegistrationTargetAudience.HomeTenant,
       specificAppId: "mockedAppId",
     });
-    sinon.stub(teamsDevPortalClient, "getApiKeyRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getApiKeyRegistrationById").resolves({
       id: "mockedRegistrationId",
       description: "mockedDescription",
       clientSecrets: [],
@@ -174,7 +173,7 @@ describe("UpdateApiKeyDriver", () => {
   });
 
   it("happy path: does not update when no changes", async () => {
-    sinon.stub(teamsDevPortalClient, "getApiKeyRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getApiKeyRegistrationById").resolves({
       id: "test",
       description: "test",
       clientSecrets: [],
@@ -237,7 +236,7 @@ describe("UpdateApiKeyDriver", () => {
   });
 
   it("happy path: should not show confirm when only devtunnel url is different", async () => {
-    sinon.stub(teamsDevPortalClient, "updateApiKeyRegistration").resolves({
+    sinon.stub(teamsGraphClient, "updateApiKeyRegistration").resolves({
       description: "test",
       targetUrlsShouldStartWith: ["https://test2.asse.devtunnels.ms"],
       applicableToApps: ApiSecretRegistrationAppType.AnyApp,
@@ -247,7 +246,7 @@ describe("UpdateApiKeyDriver", () => {
       .stub(featureFlagManager, "getBooleanValue")
       .withArgs(FeatureFlags.KiotaNPMIntegration)
       .returns(false);
-    sinon.stub(teamsDevPortalClient, "getApiKeyRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getApiKeyRegistrationById").resolves({
       id: "test",
       description: "test",
       clientSecrets: [],
@@ -303,7 +302,7 @@ describe("UpdateApiKeyDriver", () => {
       .stub(featureFlagManager, "getBooleanValue")
       .withArgs(FeatureFlags.KiotaNPMIntegration)
       .returns(false);
-    sinon.stub(teamsDevPortalClient, "getApiKeyRegistrationById").resolves({
+    sinon.stub(teamsGraphClient, "getApiKeyRegistrationById").resolves({
       id: "mockedRegistrationId",
       description: "mockedDescription",
       clientSecrets: [],
