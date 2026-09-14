@@ -36,6 +36,8 @@ import {
 import { agentMigrationIo } from "../../../src/component/agentMigration/io";
 import { readDirectory } from "../../../src/component/agentMigration/intake";
 import { MockTools } from "../../core/utils";
+import * as accountUtils from "../../../src/common/accountUtils";
+import { ResourceServiceType, serviceEndpoints } from "../../../src/common/constants";
 import { snapshot } from "./fixtures";
 import {
   syntheticInstructions,
@@ -501,12 +503,86 @@ describe("native Title-ID snapshot import", () => {
     "http://titles.prod.mos.microsoft.com",
     "https://evil.example",
     "https://titles.prod.mos.microsoft.com?token=secret",
+    "https://titles.msit.mos.microsoft.com.evil.example",
+    "https://titles.gccm.mos.microsoft.com",
+    "http://titles.msit.mos.microsoft.com",
+    "https://user:password@titles.msit.mos.microsoft.com",
+    "https://titles.msit.mos.microsoft.com?token=secret",
+    "https://titles.msit.mos.microsoft.com#fragment",
+    "https://titles.msit.mos.microsoft.com/unapproved-path",
   ])("TTI-06: refuses unapproved bootstrap endpoint %s", async (titlesServiceUrl) => {
     http.onGet(bootstrap).reply(200, Buffer.from(JSON.stringify({ titlesServiceUrl })));
     expect(
       (await client.importAgentFromTitle({ titleId: syntheticTitle, outputPath: output })).isErr()
     ).toBe(true);
     expect(http.history.get).toHaveLength(1);
+  });
+
+  it("TTI-06A: public bootstrap discovers exact MSIT while retaining the configured MOS audience", async () => {
+    const msit = "https://titles.msit.mos.microsoft.com";
+    http.onGet(bootstrap).reply(200, Buffer.from(JSON.stringify({ titlesServiceUrl: msit })));
+    http
+      .onGet(`${msit}/catalog/v1/users/titles/${syntheticTitle}/launchInfo`)
+      .reply(200, Buffer.from(JSON.stringify(launchInfo)));
+    const result = await imported();
+    expect(result.reportVersion).toBe(2);
+    expect(http.history.get.map((request) => request.url)).toEqual([
+      bootstrap,
+      `${msit}/catalog/v1/users/titles/${syntheticTitle}/launchInfo`,
+      syntheticLargeIcon,
+      syntheticSmallIcon,
+    ]);
+    expect(tools.tokenProvider.m365TokenProvider.getStatus).toHaveBeenCalledExactlyOnceWith({
+      scopes: [`${endpoint}/.default`],
+      showDialog: false,
+    });
+    expect(http.history.get[1].headers?.Authorization).toBe("Bearer synthetic-mos-token");
+    expect(http.history.get[2].headers?.Authorization).toBeUndefined();
+    expect(await fs.readFile(path.join(output, "appPackage", "color.png"))).toEqual(large);
+  });
+
+  it.each([
+    accountUtils.SovereignCloudEnvironment.GCCM,
+    accountUtils.SovereignCloudEnvironment.GCCH,
+    accountUtils.SovereignCloudEnvironment.DOD,
+  ])("TTI-06A: %s cannot discover the public MSIT title service", async (cloud) => {
+    vi.spyOn(accountUtils, "getSovereignCloudEnvironment").mockReturnValue(cloud);
+    const configured = serviceEndpoints[cloud][ResourceServiceType.MOS3];
+    const bootstrapUrl = `${configured}/config/v1/environment`;
+    http.onGet(bootstrapUrl).reply(
+      200,
+      Buffer.from(
+        JSON.stringify({
+          titlesServiceUrl: "https://titles.msit.mos.microsoft.com",
+        })
+      )
+    );
+    const result = await client.importAgentFromTitle({
+      titleId: syntheticTitle,
+      outputPath: output,
+    });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) expect(result.error.name).toBe("AgentTitleSourceUnsupported");
+    expect(http.history.get.map((request) => request.url)).toEqual([bootstrapUrl]);
+    expect(tools.tokenProvider.m365TokenProvider.getStatus).toHaveBeenCalledWith({
+      scopes: [`${configured}/.default`],
+      showDialog: false,
+    });
+  });
+
+  it("TTI-06A: an approved discovered origin still cannot redirect authenticated requests", async () => {
+    const msit = "https://titles.msit.mos.microsoft.com";
+    http.onGet(bootstrap).reply(200, Buffer.from(JSON.stringify({ titlesServiceUrl: msit })));
+    http
+      .onGet(`${msit}/catalog/v1/users/titles/${syntheticTitle}/launchInfo`)
+      .reply(302, Buffer.alloc(0), { Location: launchUrl });
+    const result = await client.importAgentFromTitle({
+      titleId: syntheticTitle,
+      outputPath: output,
+    });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) expect(result.error.name).toBe("AgentTitleRequestFailed");
+    expect(http.history.get).toHaveLength(2);
   });
 
   it.each([bootstrap, launchUrl, syntheticLargeIcon])(

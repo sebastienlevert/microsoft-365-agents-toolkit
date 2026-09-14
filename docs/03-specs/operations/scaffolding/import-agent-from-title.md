@@ -119,8 +119,16 @@ wrapper that can select password authentication. Its explicit silent status
 path must not fall back to login, clear the cache, or perform connectivity probes.
 
 Use the configured-cloud native MOS3 origin for `/config/v1/environment`, then
-accept `titlesServiceUrl` only at that same approved HTTPS origin with no
-credentials, query, or fragment. GET the normalized Title ID as one encoded path
+accept `titlesServiceUrl` only at an exact cloud-scoped approved HTTPS origin
+with root pathname and no credentials, query, or fragment. Public-cloud
+discovery permits the configured `https://titles.prod.mos.microsoft.com` origin
+and the verified `https://titles.msit.mos.microsoft.com` origin. Sovereign clouds
+permit only their own configured MOS3 origin; they cannot discover public/MSIT
+origins, nor can public discovery cross into a sovereign cloud. Bootstrap itself
+always stays at the configured origin, and the token scope/audience remains
+the configured `MosServiceScope()` even when the approved title service is MSIT.
+This is explicit service discovery, not permission to follow HTTP redirects or
+to trust arbitrary Microsoft subdomains. GET the normalized Title ID as one encoded path
 segment from `/catalog/v1/users/titles/<id>/launchInfo` with the same native
 element filter as `getLaunchInfoByTitleId`, including unsupported element kinds
 so nonempty groups are detected rather than hidden. No TDP/Graph/list/acquire/publish
@@ -195,6 +203,7 @@ with default color branding.
 | TTI-04 | L1 | operation-integration | required | Path/provider harness | Invalid IDs/suffixes/destination/links/types or existing target | Fail closed; invalid local inputs invoke no token/network calls |
 | TTI-05 | L1 | operation-integration | required | Silent provider + bounded wait | Signed out/error/hung status, expired deadline, caller cancellation | Stable auth/timeout/cancel errors; no interactive/auth-state changes |
 | TTI-06 | L1 | operation-integration | required | Real HTTP client with fake edge | Unapproved bootstrap/CDN, redirects, credentialed URLs, bytes/timeout limits | Reject unsafe transport; MOS bearer never reaches icons or arbitrary URLs |
+| TTI-06A | L1 | operation-integration | required | Synthetic cloud-scoped discovery + real importer | Public bootstrap discovers exact MSIT origin; wrong-cloud/unapproved alternatives | Valid MSIT snapshot clones with original audience; all other origins/redirects fail before asset acquisition |
 | TTI-07 | L1 | operation-integration | required | Synthetic response corpus | Missing/multiple DA, nonempty element groups, missing local actions/workers/knowledge, alias/unknown schema | Explicit invalid/unsupported/incomplete errors, no lossy reconstruction |
 | TTI-08 | L1 | operation-integration | required | Real filesystem + fault seam | Dry run, cancellation, malformed/unreachable PNG, staging/promotion failure | No partial destination or residual owned staging; source immutable |
 | TTI-09 | L1 | scenario | required | Public import/edit/package | Import, approved edit/no-op, local native packaging | Exact packaged text/assets, new identity, complete-state digest and historical title provenance |

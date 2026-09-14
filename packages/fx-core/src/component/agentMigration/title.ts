@@ -12,7 +12,8 @@ import {
   ok,
   Result,
 } from "@microsoft/teamsfx-api";
-import { MosServiceScope } from "../../common/constants";
+import { MosServiceScope, ResourceServiceType, serviceEndpoints } from "../../common/constants";
+import { SovereignCloudEnvironment } from "../../common/accountUtils";
 import { launchInfoElementTypes } from "../m365/serviceConstant";
 import { cancelled, isErrno, migrationError, titleFailure } from "./errors";
 import { importPackageSnapshot } from "./import";
@@ -100,7 +101,12 @@ async function acquireTitle(
   if (bootstrap.isErr()) return err(bootstrap.error);
   if (typeof bootstrap.value.titlesServiceUrl !== "string")
     return err(migrationError("AgentTitleSourceInvalid"));
-  const endpoint = approvedHttpsUrl(bootstrap.value.titlesServiceUrl, [origin.value]);
+  const publicOrigin = serviceEndpoints[SovereignCloudEnvironment.Public][ResourceServiceType.MOS3];
+  const discoveryOrigins =
+    origin.value === publicOrigin
+      ? [publicOrigin, "https://titles.msit.mos.microsoft.com"]
+      : [origin.value];
+  const endpoint = approvedHttpsUrl(bootstrap.value.titlesServiceUrl, discoveryOrigins);
   if (endpoint.isErr()) return err(endpoint.error);
   if (new URL(endpoint.value).pathname !== "/")
     return err(titleFailure("AgentTitleSourceUnsupported", "mos-base-path"));
