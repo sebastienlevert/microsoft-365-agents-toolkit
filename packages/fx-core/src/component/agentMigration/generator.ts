@@ -23,6 +23,54 @@ import { renderTemplateFileData, renderTemplateFileName, unzip } from "../genera
 import { artifactDigest, Artifacts, decodeProfileArchive, parseJson } from "./model";
 import { cancelled, migrationError } from "./errors";
 
+export interface PinnedAgentProfile {
+  zip: AdmZip;
+  files: Artifacts;
+  template: AgentTemplateIdentity;
+}
+
+export async function loadAgentImportProfile(): Promise<Result<PinnedAgentProfile, FxError>> {
+  try {
+    const templateName = "declarative-agent-basic";
+    const version = "6.16.0";
+    const directory = path.join(getResourceFolder(), "agent-import", version);
+    const profile = parseJson(await fs.readFile(path.join(directory, "profile.json")));
+    if (profile.isErr()) return err(profile.error);
+    if (
+      profile.value.profileVersion !== 1 ||
+      profile.value.templateId !== templateName ||
+      profile.value.templateVersion !== version ||
+      profile.value.archiveEncoding !== "base64" ||
+      typeof profile.value.archiveSha256 !== "string" ||
+      typeof profile.value.contentDigest !== "string"
+    ) {
+      return err(migrationError("AgentPackageUnsupported"));
+    }
+    const archive = decodeProfileArchive(
+      await fs.readFile(path.join(directory, "template.zip.b64")),
+      profile.value.archiveSha256
+    );
+    if (archive.isErr()) return err(archive.error);
+    const zip = new AdmZip(archive.value);
+    const files: Artifacts = new Map(
+      zip
+        .getEntries()
+        .filter((entry) => !entry.isDirectory && entry.entryName.startsWith(`${templateName}/`))
+        .map((entry) => [entry.entryName, entry.getData()])
+    );
+    if (files.size === 0 || artifactDigest(files) !== profile.value.contentDigest) {
+      return err(migrationError("AgentPackageUnsupported"));
+    }
+    return ok({
+      zip,
+      files,
+      template: { id: templateName, version, digest: artifactDigest(files) },
+    });
+  } catch (error) {
+    return err(migrationError("AgentMigrationIoError", error));
+  }
+}
+
 /**
  * The native no-action profile, deliberately without new-agent enrichment or
  * template-channel selection. No source files are passed to the renderer.
@@ -45,44 +93,13 @@ export class AgentPackageGenerator implements IGenerator {
     const cancel = cancelled(this.signal);
     if (cancel) return err(cancel);
     try {
-      const templateName = "declarative-agent-basic";
-      const version = "6.16.0";
-      const directory = path.join(getResourceFolder(), "agent-import", version);
-      const profile = parseJson(await fs.readFile(path.join(directory, "profile.json")));
+      const profile = await loadAgentImportProfile();
       if (profile.isErr()) return err(profile.error);
-      if (
-        profile.value.profileVersion !== 1 ||
-        profile.value.templateId !== templateName ||
-        profile.value.templateVersion !== version ||
-        profile.value.archiveEncoding !== "base64" ||
-        typeof profile.value.archiveSha256 !== "string" ||
-        typeof profile.value.contentDigest !== "string"
-      ) {
-        return err(migrationError("AgentPackageUnsupported"));
-      }
-      const archive = decodeProfileArchive(
-        await fs.readFile(path.join(directory, "template.zip.b64")),
-        profile.value.archiveSha256
-      );
-      if (archive.isErr()) return err(archive.error);
-      const zip = new AdmZip(archive.value);
-      const entries: Artifacts = new Map(
-        zip
-          .getEntries()
-          .filter((entry) => !entry.isDirectory && entry.entryName.startsWith(`${templateName}/`))
-          .map((entry) => [entry.entryName, entry.getData()])
-      );
-      if (entries.size === 0 || artifactDigest(entries) !== profile.value.contentDigest) {
-        return err(migrationError("AgentPackageUnsupported"));
-      }
-      this.template = {
-        id: templateName,
-        version,
-        digest: artifactDigest(entries),
-      };
+      const templateName = profile.value.template.id;
+      this.template = profile.value.template;
       const variables = Generator.getDefaultVariables("ImportedAgent");
       await unzip(
-        zip,
+        profile.value.zip,
         destinationPath,
         (name, data) =>
           renderTemplateFileName(name, data, variables).slice(templateName.length + 1),

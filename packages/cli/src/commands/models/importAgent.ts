@@ -2,9 +2,9 @@
 // Licensed under the MIT license.
 
 import { AgentImportRequest, CLICommand, err } from "@microsoft/teamsfx-api";
-import { MissingRequiredOptionError } from "../../error";
+import { ArgumentConflictError, MissingRequiredOptionError } from "../../error";
 import { commands } from "../../resource";
-import { agentPackageOptions, runAgentPackageOperation } from "./agentPackage";
+import { agentPackageOptions, runAgentPackageOperation, titleAgentCliDeps } from "./agentPackage";
 
 export const importAgentCommand: CLICommand = {
   name: "agent",
@@ -15,8 +15,13 @@ export const importAgentCommand: CLICommand = {
       name: "source",
       questionName: "sourcePath",
       type: "string",
-      required: true,
       description: commands["import.agent"].options.source,
+    },
+    {
+      name: "title-id",
+      questionName: "titleId",
+      type: "string",
+      description: commands["import.agent"].options.titleId,
     },
     {
       name: "output",
@@ -32,11 +37,39 @@ export const importAgentCommand: CLICommand = {
         "atk import agent --source exported-agent.zip --output new-agent --format json -i false",
       description: commands["import.agent"].example,
     },
+    {
+      command:
+        "atk import agent --title-id SyntheticTitle-001 --output new-agent --format json -i false",
+      description: commands["import.agent"].titleExample,
+    },
   ],
   handler: async (context) => {
-    const { sourcePath, outputPath, dryRun } = context.optionValues;
+    const { sourcePath, titleId, outputPath, dryRun } = context.optionValues;
+    if (sourcePath !== undefined && titleId !== undefined) {
+      return err(new ArgumentConflictError(context.command.fullName, "--source", "--title-id"));
+    }
+    if (titleId !== undefined) {
+      if (typeof titleId !== "string" || titleId.length === 0) {
+        return err(new MissingRequiredOptionError(context.command.fullName, "--title-id"));
+      }
+      return runAgentPackageOperation(
+        context,
+        (client, options) =>
+          client.importAgentFromTitle(
+            {
+              titleId,
+              outputPath: typeof outputPath === "string" ? outputPath : undefined,
+              dryRun: dryRun === true,
+            },
+            options
+          ),
+        titleAgentCliDeps.getStatus
+      );
+    }
     if (typeof sourcePath !== "string" || sourcePath.length === 0) {
-      return err(new MissingRequiredOptionError(context.command.fullName, "source"));
+      return err(
+        new MissingRequiredOptionError(context.command.fullName, "--source or --title-id")
+      );
     }
     const request: AgentImportRequest = {
       sourcePath,

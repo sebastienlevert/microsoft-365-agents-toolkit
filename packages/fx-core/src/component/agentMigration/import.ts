@@ -8,6 +8,7 @@ import YAML from "yaml";
 import {
   AgentImportRequest,
   AgentMigrationReport,
+  AgentTitleImportReport,
   Context,
   err,
   FxError,
@@ -20,7 +21,7 @@ import {
 import { getLocalizedString } from "../../common/localizeUtils";
 import { cancelled, isErrno, migrationError } from "./errors";
 import { AgentPackageGenerator } from "./generator";
-import { inspectGraph, packageRoot } from "./graph";
+import { inspectGraph, PackageGraph, packageRoot } from "./graph";
 import { instructionFile } from "./instructions";
 import { intake, readDirectory } from "./intake";
 import { agentMigrationIo, prepareParent, requireAbsent, writeArtifacts } from "./io";
@@ -75,8 +76,39 @@ async function runImport(
     return err(migrationError("AgentPackagePathInvalid"));
   const absent = await requireAbsent(destination);
   if (absent.isErr()) return err(absent.error);
+  return importPackageSnapshot(
+    {
+      destination,
+      dryRun: request.dryRun === true,
+      kind: input.value.kind,
+      source: root.value,
+      allSourceFiles: input.value.files,
+      graph: graph.value,
+    },
+    context,
+    signal
+  );
+}
+
+export interface AgentPackageSnapshot {
+  destination: string;
+  dryRun: boolean;
+  kind: "zip" | "directory";
+  source: Artifacts;
+  allSourceFiles: Artifacts;
+  graph: PackageGraph;
+  titleSource?: AgentTitleImportReport["source"];
+}
+
+/** Both local packages and validated service snapshots share the same staging boundary. */
+export async function importPackageSnapshot(
+  snapshot: AgentPackageSnapshot,
+  context: Context,
+  signal?: AbortSignal
+): Promise<Result<AgentMigrationReport, FxError>> {
+  const { destination } = snapshot;
   const parent = path.dirname(destination);
-  const appName = object(graph.value.manifest.name)?.short;
+  const appName = object(snapshot.graph.manifest.name)?.short;
   if (typeof appName !== "string") return err(migrationError("AgentPackageSchemaInvalid"));
   let stage: string | undefined;
   let release: (() => Promise<void>) | undefined;
@@ -96,15 +128,16 @@ async function runImport(
     result = await stageImport(
       stage,
       destination,
-      request,
-      input.value.kind,
-      root.value,
-      input.value.files,
-      graph.value,
+      snapshot,
+      snapshot.kind,
+      snapshot.source,
+      snapshot.allSourceFiles,
+      snapshot.graph,
       context,
-      signal
+      signal,
+      snapshot.titleSource
     );
-    if (result.isOk() && !request.dryRun) {
+    if (result.isOk() && !snapshot.dryRun) {
       await agentMigrationIo.beforeCommit();
       const cancel = cancelled(signal);
       const stillAbsent = await requireAbsent(destination);
@@ -137,13 +170,14 @@ async function runImport(
 async function stageImport(
   stage: string,
   destination: string,
-  request: AgentImportRequest,
+  request: Pick<AgentImportRequest, "dryRun">,
   kind: "zip" | "directory",
   source: Artifacts,
   allSourceFiles: Artifacts,
-  graph: import("./graph").PackageGraph,
+  graph: PackageGraph,
   context: Context,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  titleSource?: AgentTitleImportReport["source"]
 ): Promise<Result<AgentMigrationReport, FxError>> {
   const appName = object(graph.manifest.name)?.short;
   if (typeof appName !== "string") return err(migrationError("AgentPackageSchemaInvalid"));
@@ -156,11 +190,15 @@ async function stageImport(
   const sourceAppId = graph.manifest.id;
   const primary = graph.documents.get(graph.agentPath)!.value;
   const sourceAgentId = primary.id;
-  const sourceAgents = Object.fromEntries(
-    [...graph.documents]
-      .filter(([, document]) => document.kind === "agent" && typeof document.value.id === "string")
-      .map(([name, document]) => [name, document.value.id])
-  );
+  const sourceAgents = titleSource
+    ? {}
+    : Object.fromEntries(
+        [...graph.documents]
+          .filter(
+            ([, document]) => document.kind === "agent" && typeof document.value.id === "string"
+          )
+          .map(([name, document]) => [name, document.value.id])
+      );
   graph.manifest.id = "${{TEAMS_APP_ID}}";
   const transformations: AgentMigrationReport["transformations"] = [
     {
@@ -184,7 +222,7 @@ async function stageImport(
   }
   for (const [file, document] of graph.documents) {
     if (document.kind !== "agent") continue;
-    delete document.value.id;
+    if (!titleSource) delete document.value.id;
     const instructions = graph.instructions.get(file);
     if (instructions) {
       // Reserve every source name, including skipped candidates, before choosing an instruction file.
@@ -213,16 +251,17 @@ async function stageImport(
     agentId: graph.agentId,
     projectId: generator.projectId,
     appId: "${{TEAMS_APP_ID}}",
-    ...(typeof sourceAppId === "string" ? { sourceAppId } : {}),
-    ...(typeof sourceAgentId === "string" ? { sourceAgentId } : {}),
+    ...(!titleSource && typeof sourceAppId === "string" ? { sourceAppId } : {}),
+    ...(!titleSource && typeof sourceAgentId === "string" ? { sourceAgentId } : {}),
   };
   const output = new Map([...packageFiles].map(([name, data]) => [`appPackage/${name}`, data]));
   output.set(
     ".atk/import.json",
     jsonBytes({
-      reportVersion: 1,
+      reportVersion: titleSource ? 2 : 1,
       ruleVersion: "agent-package/1",
-      sourceDigest: artifactDigest(allSourceFiles),
+      sourceDigest: titleSource?.digest ?? artifactDigest(allSourceFiles),
+      ...(titleSource ? { source: titleSource } : {}),
       identity,
       sourceAgents,
       template: generator.template,
@@ -230,7 +269,13 @@ async function stageImport(
   );
   const written = await writeArtifacts(stage, output, signal);
   if (written.isErr()) return err(written.error);
-  const finalGraph = await inspectGraph(packageFiles, signal);
+  const finalGraph = await inspectGraph(
+    packageFiles,
+    signal,
+    false,
+    false,
+    titleSource !== undefined
+  );
   if (finalGraph.isErr()) return err(finalGraph.error);
   for (const [file, original] of graph.instructions) {
     const resolved = await resolveManifest(packageFiles.get(file)!.toString("utf8"), {

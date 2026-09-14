@@ -89,6 +89,17 @@ No tenant credentials are needed. Cooperative SIGINT is emitted after listener
 registration so cancellation is deterministic on Windows as well as Unix.
 Fixtures are created beneath this package's test directory and cleaned after each test.
 
+The additive Title-ID path uses only synthetic response/PNG fixtures, fake HTTP
+at the transport edge, and the real native generator/import/edit/package code:
+
+```powershell
+pnpm exec vitest run tests\unit\commands\agentTitle.tests.ts tests\unit\commonlib\titleSilentLogin.tests.ts --config vitest.config.ts --maxWorkers=2
+```
+
+The silent-provider tests forbid browser login, logout/cache clearing, connectivity
+probes, and password-provider switching. Never add private launch-info payloads,
+real agent instructions/IDs, downloaded tenant images, or credentials as fixtures.
+
 ## Coding Style
 ---
 

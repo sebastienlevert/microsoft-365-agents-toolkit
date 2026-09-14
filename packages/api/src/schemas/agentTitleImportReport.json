@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Native Title-ID snapshot import report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportVersion", "projectPath", "operationMode", "dryRun", "changed", "source",
+    "projectDigest", "identity", "template", "transformations", "files", "referenceMap",
+    "diagnostics", "configuration", "recoveryRequired"
+  ],
+  "properties": {
+    "reportVersion": { "const": 2 },
+    "projectPath": { "type": "string" },
+    "operationMode": { "enum": ["imported", "dry-run"] },
+    "dryRun": { "type": "boolean" },
+    "changed": { "const": true },
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "titleId", "digest"],
+      "properties": {
+        "kind": { "const": "title-id" },
+        "titleId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,256}$" },
+        "digest": { "$ref": "#/definitions/digest" }
+      }
+    },
+    "projectDigest": { "$ref": "#/definitions/digest" },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy", "provisionedByOperation", "agentId", "projectId", "appId"],
+      "properties": {
+        "policy": { "const": "new" },
+        "provisionedByOperation": { "const": false },
+        "agentId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "appId": { "const": "${{TEAMS_APP_ID}}" }
+      }
+    },
+    "template": {
+      "type": "object", "additionalProperties": false, "required": ["id", "version", "digest"],
+      "properties": {
+        "id": { "type": "string" }, "version": { "type": "string" },
+        "digest": { "$ref": "#/definitions/digest" }
+      }
+    },
+    "transformations": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["ruleId", "path", "description"],
+        "properties": {
+          "ruleId": { "type": "string" }, "path": { "type": "string" }, "description": { "type": "string" }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["path", "action"],
+        "properties": {
+          "path": { "type": "string" },
+          "action": { "enum": ["created", "modified", "preserved", "skipped", "candidate"] },
+          "sourcePath": { "type": "string" },
+          "digest": { "$ref": "#/definitions/digest" }
+        }
+      }
+    },
+    "referenceMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["code", "severity", "message"],
+        "properties": {
+          "code": { "type": "string" }, "severity": { "enum": ["info", "warning"] },
+          "message": { "type": "string" }, "path": { "type": "string" },
+          "pointer": { "type": "string" }, "ruleId": { "type": "string" },
+          "remediation": { "type": "string" }
+        }
+      }
+    },
+    "configuration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["structurallyValid", "readyToProvision", "readyToPublish", "requirements"],
+      "properties": {
+        "structurallyValid": { "const": true },
+        "readyToProvision": { "const": "not-evaluated" },
+        "readyToPublish": { "const": "not-evaluated" },
+        "requirements": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recoveryRequired": { "const": false }
+  },
+  "definitions": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  }
+}

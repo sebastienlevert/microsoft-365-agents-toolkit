@@ -803,7 +803,11 @@ class CLIEngine {
         process.stderr.write(
           maskSecret(`${fxError.source}.${fxError.name}: ${fxError.message}`) + "\n"
         );
-        process.exitCode = isUserCancelError(fxError) ? 130 : 1;
+        process.exitCode = isUserCancelError(fxError)
+          ? 130
+          : fxError.name === "AgentTitleAuthenticationRequired"
+            ? 2
+            : 1;
       }
       return;
     }

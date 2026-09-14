@@ -49,6 +49,26 @@ profile with `pnpm run bundle:agent-import-profile` after building the matching
 native template release and core. A content change requires a new profile
 version; the command refuses to overwrite an existing different profile.
 
+## Clone a returned Title-ID snapshot
+
+`FxCoreClient.importAgentFromTitle({ titleId, outputPath?, dryRun? }, { signal? })`
+creates a new project from the returned launch-info DA snapshot. It uses only
+the selected host provider's explicit silent `getStatus` path and bounded MOS
+reads, plus anonymous downloads from the supported public icon origins. It
+never initiates login, changes accounts, requests consent, calls TDP/Graph,
+acquires/installs an agent, or modifies the source.
+
+This operation returns the separate flat `AgentTitleImportReport` (version 2)
+and exported `agentTitleImportReportSchema`. Available DA behavior and color
+bytes are preserved; absent original container metadata and the outline icon
+come from the pinned native scaffold and are explicitly marked for review.
+It does not claim to recreate an original ZIP or authoring draft. Required
+missing definitions/assets fail instead of being replaced with invented data.
+
+The [Title-ID operation contract](../../docs/03-specs/operations/scaffolding/import-agent-from-title.md)
+defines the supported profile, exact snapshot fingerprint, bounded transport,
+errors, and provenance. Existing local import and edits retain report version 1.
+
 ## Data Collection.
 
 The software may collect information about you and your use of the software and send it to Microsoft. Microsoft may use this information to provide services and improve our products and services. You may turn off the telemetry as described in the repository. There are also some features in the software that may enable you and Microsoft to collect data from users of your applications. If you use these features, you must comply with applicable law, including providing appropriate notices to users of your applications together with a copy of Microsoft's privacy statement. Our privacy statement is located at https://go.microsoft.com/fwlink/?LinkID=824704. You can learn more about data collection and use in the help documentation and our privacy statement. Your use of the software operates as your consent to these practices.

@@ -10,6 +10,7 @@ import { inspectGraph } from "./graph";
 import { readDirectory } from "./intake";
 import { readFile } from "./io";
 import { parseJson } from "./model";
+import { isTitleSnapshotProvenance } from "./report";
 
 /**
  * Retain the validated local closure of an imported package. Legacy packaging
@@ -45,7 +46,13 @@ export async function appendImportedPackageFiles(
       .filter(([name]) => name.startsWith("appPackage/"))
       .map(([name, bytes]) => [name.slice(11), bytes])
   );
-  const graph = await inspectGraph(files);
+  const graph = await inspectGraph(
+    files,
+    undefined,
+    false,
+    false,
+    isTitleSnapshotProvenance(metadata.value)
+  );
   if (graph.isErr()) return err(graph.error);
   try {
     for (const name of graph.value.files) {

@@ -11,7 +11,7 @@ import {
   Result,
   TeamsManifestConverter,
 } from "@microsoft/teamsfx-api";
-import { crc32, JsonObject, jsonBytes, parseJson } from "./model";
+import { crc32, isObject, JsonObject, jsonBytes, parseJson } from "./model";
 import { inflateSync } from "zlib";
 import { migrationError } from "./errors";
 
@@ -36,7 +36,8 @@ export function schemaUrl(kind: DocumentKind, version: string): string {
 
 export async function validateDocument(
   input: JsonObject,
-  kind: DocumentKind
+  kind: DocumentKind,
+  titleSnapshot = false
 ): Promise<Result<undefined, FxError>> {
   const version =
     input[kind === "teams" ? "manifestVersion" : kind === "agent" ? "version" : "schema_version"];
@@ -56,6 +57,22 @@ export async function validateDocument(
     schema = await AppManifestUtils.fetchSchema(url, { localOnly: true });
   } catch (error) {
     return err(migrationError("AgentPackageUnsupported", error));
+  }
+  if (titleSnapshot && kind === "agent" && version === "v1.0") {
+    const properties = schema.properties;
+    const instructions = properties?.instructions;
+    if (isObject(instructions) && instructions.pattern === "^(?!\\[\\[)((.|\\n)*?)(?<!\\]\\])$") {
+      schema = {
+        ...schema,
+        properties: {
+          ...properties,
+          instructions: {
+            ...instructions,
+            pattern: "^(?!\\[\\[)((.|\\r?\\n)*?)(?<!\\]\\])$",
+          },
+        },
+      };
+    }
   }
   try {
     const clone = parseJson(jsonBytes(input));

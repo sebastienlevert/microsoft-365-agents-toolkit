@@ -5,6 +5,8 @@ import {
   AgentEditRequest,
   AgentImportRequest,
   AgentMigrationReport,
+  AgentTitleImportReport,
+  AgentTitleImportRequest,
   FxError,
   Inputs,
   InputsWithProjectPath,
@@ -101,6 +103,10 @@ export type FxCoreAddAuthActionInputs = AddAuthActionInputs &
  * are successful domain outcomes from validate(), with valid set to false.
  */
 export interface IFxCoreClient {
+  importAgentFromTitle(
+    request: AgentTitleImportRequest,
+    options?: FxCoreExecutionOptions
+  ): Promise<Result<AgentTitleImportReport, FxError>>;
   importAgentPackage(
     request: AgentImportRequest,
     options?: FxCoreExecutionOptions
@@ -167,6 +173,13 @@ export class FxCoreClient implements IFxCoreClient {
     options?: FxCoreExecutionOptions
   ): Promise<Result<AgentMigrationReport, FxError>> {
     return this.core.applyAgentEdits(request, options);
+  }
+
+  public async importAgentFromTitle(
+    request: AgentTitleImportRequest,
+    options?: FxCoreExecutionOptions
+  ): Promise<Result<AgentTitleImportReport, FxError>> {
+    return this.core.importAgentFromTitle(request, options);
   }
 
   public async addPlugin(

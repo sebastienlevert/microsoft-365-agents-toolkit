@@ -6,6 +6,27 @@ export interface MOS3Api {
   path: RegExp;
 }
 
+export const launchInfoElementTypes = [
+  "Extensions",
+  "OfficeAddIns",
+  "ExchangeAddIns",
+  "FirstPartyPages",
+  "Dynamics",
+  "AAD",
+  "LineOfBusiness",
+  "StaticTabs",
+  "ComposeExtensions",
+  "Bots",
+  "GraphConnector",
+  "ConfigurableTabs",
+  "Activities",
+  "MeetingExtensionDefinition",
+  "OpenAIPlugins",
+  "Gpts",
+  "DeclarativeCopilots",
+  "Plugins",
+];
+
 export const MOS3ApiDefinitions: any = {
   GetConfigEnv: {
     key: "get_config_env",

@@ -46,7 +46,9 @@ export function packageRoot(files: Artifacts): Result<Artifacts, FxError> {
 export async function inspectGraph(
   files: Artifacts,
   signal?: AbortSignal,
-  normalizePaths = false
+  normalizePaths = false,
+  literalInstructions = false,
+  titleSnapshot = false
 ): Promise<Result<PackageGraph, FxError>> {
   const bytes = files.get("manifest.json");
   if (!bytes) return err(migrationError("AgentPackageReferenceMissing"));
@@ -215,8 +217,14 @@ export async function inspectGraph(
     visiting.add(file);
     graph.files.add(file);
     if (kind === "agent" && typeof document.instructions === "string") {
-      const ref = getStaticManifestFileReference(document.instructions);
-      if (!ref && /^\$\[\s*file\([\s\S]*\)\s*\]$/.test(document.instructions)) {
+      const ref = literalInstructions
+        ? undefined
+        : getStaticManifestFileReference(document.instructions);
+      if (
+        !literalInstructions &&
+        !ref &&
+        /^\$\[\s*file\([\s\S]*\)\s*\]$/.test(document.instructions)
+      ) {
         return err(migrationError("AgentPackageUnsupported"));
       }
       let content = document.instructions;
@@ -234,7 +242,7 @@ export async function inspectGraph(
       resolved.instructions = content;
       graph.instructions.set(file, { content, sourcePath });
     }
-    const valid = await validateDocument(resolved, kind);
+    const valid = await validateDocument(resolved, kind, titleSnapshot);
     if (valid.isErr()) return err(valid.error);
     graph.documents.set(file, { kind, value: document });
     if (kind === "agent") {

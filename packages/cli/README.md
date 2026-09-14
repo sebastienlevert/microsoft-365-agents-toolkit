@@ -33,8 +33,8 @@ are rejected. If omitted, the default is `<source-basename>-imported` in the cur
 directory; an `appPackage` folder uses its parent basename. `--source`, and the
 edit command's `--folder` and `--changes`, are required.
 
-Both commands are always noninteractive, including when invoked in-process or with
-`-i true`. Missing flags return named errors, never prompts. They use only local files
+Both local operations are always noninteractive, including when invoked in-process or with
+`-i true`. Missing flags return named errors, never prompts. The `--source` import and edit use only local files
 and bundled assets: no network, authentication, AI, source-script execution,
 provisioning, or publishing. Startup online checks and telemetry are disabled for
 these two commands. Generated lifecycle files are not executed.
@@ -78,6 +78,33 @@ configuration. Dry runs commit no changes, and no-ops do not rewrite project fil
 Use `atk import agent --help` or `atk edit agent --help` for command options.
 These commands are separate from the existing `import agentplugin` / `import openplugin`
 conversion commands.
+
+### Import a returned launch-info snapshot
+
+```powershell
+atk import agent --title-id SyntheticTitle-001 --output ".\new-agent" --dry-run --format json -i false
+atk import agent --title-id SyntheticTitle-001 --output ".\new-agent" --format json -i false
+```
+
+Supply exactly one of `--source` and `--title-id`. Title-ID acquisition requires
+an already signed-in selected native account and remains strictly noninteractive:
+no browser/device login, account switch, password-provider fallback, or consent.
+It performs bounded read-only MOS requests and anonymous approved-CDN icon reads.
+Authentication-required errors exit 2; other failures exit 1 and cancellation
+exits 130. No install, acquire, provisioning, publishing, or source update occurs.
+
+The JSON envelope is unchanged, but a Title-ID result has `reportVersion: 2` and
+`source.kind: "title-id"`. Local import and edits still return version 1.
+The returned DA snapshot is the source, not an original ZIP or a maker draft.
+Source instructions/capabilities/color are preserved. The new container's
+unavailable original legal/developer metadata and outline branding are generated
+native scaffold defaults, explicitly reported as needing review. The small
+preview icon is not substituted for an outline icon. Unsupported element groups
+or missing required local dependency/asset bytes fail with ZIP remediation.
+
+See the [Title-ID contract](../../docs/03-specs/operations/scaffolding/import-agent-from-title.md)
+for the profile, suffix normalization, complete snapshot fingerprint, and
+historical `.atk/import.json` provenance.
 
 See the [import contract](../../docs/03-specs/operations/scaffolding/import-agent-package.md),
 [supported edit operations](../../docs/03-specs/operations/scaffolding/apply-agent-edits.md),

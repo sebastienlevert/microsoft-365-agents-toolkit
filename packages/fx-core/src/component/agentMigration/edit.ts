@@ -15,8 +15,13 @@ import { readEdits, planEdits } from "./editPlan";
 import { cancelled, migrationError } from "./errors";
 import { inspectGraph } from "./graph";
 import { readDirectory } from "./intake";
-import { artifactDigest } from "./model";
-import { importedTemplate, makeReport, projectTrackingId } from "./report";
+import { artifactDigest, parseJson } from "./model";
+import {
+  importedTemplate,
+  isTitleSnapshotProvenance,
+  makeReport,
+  projectTrackingId,
+} from "./report";
 import { checkRecovery, commitEdits } from "./transaction";
 
 export async function applyAgentEdits(
@@ -47,16 +52,20 @@ export async function applyAgentEdits(
     const changesFile = path.resolve(request.changesFile);
     const changes = await readEdits(changesFile);
     if (changes.isErr()) return err(changes.error);
+    const provenanceBytes = before.value.get(".atk/import.json");
+    const provenance = provenanceBytes ? parseJson(provenanceBytes) : ok(undefined);
+    if (provenance.isErr()) return err(provenance.error);
+    const titleSnapshot = isTitleSnapshotProvenance(provenance.value);
     const packageFiles = new Map(
       [...before.value]
         .filter(([name]) => name.startsWith("appPackage/"))
         .map(([name, data]) => [name.slice(11), data])
     );
-    const graph = await inspectGraph(packageFiles, signal);
+    const graph = await inspectGraph(packageFiles, signal, false, false, titleSnapshot);
     if (graph.isErr()) return err(graph.error);
     const planned = await planEdits(changes.value, changesFile, graph.value, packageFiles, signal);
     if (planned.isErr()) return err(planned.error);
-    const finalGraph = await inspectGraph(planned.value, signal);
+    const finalGraph = await inspectGraph(planned.value, signal, false, false, titleSnapshot);
     if (finalGraph.isErr()) return err(finalGraph.error);
     const after = new Map([
       ...before.value,

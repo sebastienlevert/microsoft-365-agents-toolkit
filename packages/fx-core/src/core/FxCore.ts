@@ -14,6 +14,8 @@ import {
   AgentEditRequest,
   AgentImportRequest,
   AgentMigrationReport,
+  AgentTitleImportReport,
+  AgentTitleImportRequest,
   ApiOperation,
   AppPackageFolderName,
   AuthCredentialSource,
@@ -47,6 +49,7 @@ import {
 } from "@microsoft/teamsfx-api";
 import { importAgentPackage } from "../component/agentMigration/import";
 import { applyAgentEdits } from "../component/agentMigration/edit";
+import { importAgentFromTitle } from "../component/agentMigration/title";
 import AdmZip from "adm-zip";
 import { DotenvParseOutput } from "dotenv";
 import fs from "fs-extra";
@@ -252,6 +255,14 @@ export class FxCore extends FxCoreOpenPluginPart {
     options?: { signal?: AbortSignal }
   ): Promise<Result<AgentMigrationReport, FxError>> {
     return applyAgentEdits(request, options?.signal);
+  }
+
+  /** Read an explicitly selected launch-info snapshot without interactive authentication. */
+  public async importAgentFromTitle(
+    request: AgentTitleImportRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<Result<AgentTitleImportReport, FxError>> {
+    return importAgentFromTitle(request, createContext(), options?.signal);
   }
 
   private getAbortSignal(inputs: Inputs): AbortSignal | undefined {

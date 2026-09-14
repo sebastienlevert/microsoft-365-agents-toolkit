@@ -3,10 +3,12 @@
 
 import {
   AgentMigrationReport,
+  AgentTitleImportReport,
   CLICommandOption,
   CLIContext,
   FxError,
   LogLevel,
+  M365TokenProvider,
   Result,
   SystemError,
   Tools,
@@ -20,6 +22,7 @@ import {
   maskSecret,
 } from "@microsoft/teamsfx-core";
 import { CLILogger } from "../../commonlib/logger";
+import { M365Login } from "../../commonlib/m365Login";
 import { cliSource } from "../../constants";
 import { commands, errors } from "../../resource";
 import { writeLocalAgentOutput } from "../localAgent";
@@ -47,7 +50,12 @@ class LocalAgentLogger extends CLILogger {
   }
 }
 
-export function createLocalAgentClient(): IFxCoreClient {
+export const titleAgentCliDeps = {
+  getStatus: ((request) =>
+    M365Login.getInstance().getStatus(request)) satisfies M365TokenProvider["getStatus"],
+};
+
+export function createLocalAgentClient(getStatus?: M365TokenProvider["getStatus"]): IFxCoreClient {
   // These operations have no UI/auth/execution contract. Fail closed if that boundary regresses.
   const unavailable = (): never => {
     throw new SystemError({
@@ -75,7 +83,7 @@ export function createLocalAgentClient(): IFxCoreClient {
       m365TokenProvider: {
         getAccessToken: unavailable,
         getJsonObject: unavailable,
-        getStatus: unavailable,
+        getStatus: getStatus ?? unavailable,
         signout: unavailable,
         switchTenant: unavailable,
         setStatusChangeMap: unavailable,
@@ -100,18 +108,23 @@ export function createLocalAgentClient(): IFxCoreClient {
   return new FxCoreClient(tools);
 }
 
-export async function runAgentPackageOperation(
+export async function runAgentPackageOperation<
+  T extends AgentMigrationReport | AgentTitleImportReport,
+>(
   context: CLIContext,
   operation: (
     client: IFxCoreClient,
     options: FxCoreExecutionOptions
-  ) => Promise<Result<AgentMigrationReport, FxError>>
+  ) => Promise<Result<T, FxError>>,
+  getStatus?: M365TokenProvider["getStatus"]
 ): Promise<Result<undefined, FxError>> {
   const controller = new AbortController();
   const cancel = () => controller.abort();
   process.on("SIGINT", cancel);
   try {
-    const result = await operation(createLocalAgentClient(), { signal: controller.signal });
+    const result = await operation(createLocalAgentClient(getStatus), {
+      signal: controller.signal,
+    });
     if (result.isErr()) return err(result.error);
     const json = context.optionValues.format === "json";
     await writeLocalAgentOutput(

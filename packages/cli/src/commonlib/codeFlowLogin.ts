@@ -420,7 +420,8 @@ export class CodeFlowLogin {
   async getTokenByScopes(
     scopes: string | string[] | AuthenticationWWWAuthenticateRequest,
     refresh = true,
-    tenantId?: string
+    tenantId?: string,
+    silentOnly = false
   ): Promise<Result<string, FxError>> {
     if (!this.account) {
       await this.reloadCache();
@@ -431,6 +432,8 @@ export class CodeFlowLogin {
     }
 
     if (!this.account) {
+      if (silentOnly)
+        return err(LoginCodeFlowError(new Error(ErrorMessage.loginFailureDescription)));
       const accessToken = await this.login(
         typeof scopes === "string" ? [scopes] : scopes,
         tenantId
@@ -472,6 +475,7 @@ export class CodeFlowLogin {
           return err(LoginCodeFlowError(new Error("No token response")));
         }
       } catch (error: any) {
+        if (silentOnly) return err(LoginCodeFlowError(error));
         if (refresh) {
           CliCodeLogInstance.necessaryLog(
             LogLevel.Debug,

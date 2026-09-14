@@ -163,9 +163,13 @@ export class M365Login extends BasicLogin implements M365TokenProvider {
     if (M365Login.codeFlowInstance.account) {
       const tokenRes = await M365Login.codeFlowInstance.getTokenByScopes(
         tokenRequest.scopes,
-        false
+        false,
+        undefined,
+        tokenRequest.showDialog === false
       );
       if (tokenRes.isOk()) {
+        if (tokenRequest.showDialog === false)
+          return ok({ status: signedIn, token: tokenRes.value });
         const tokenJson = ConvertTokenToJson(tokenRes.value);
         return ok({ status: signedIn, token: tokenRes.value, accountInfo: tokenJson });
       } else {

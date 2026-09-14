@@ -4,9 +4,16 @@
 import { DeclarativeAgentManifestLatest, TeamsManifestLatest } from "@microsoft/app-manifest";
 export { default as agentEditDocumentSchema } from "./schemas/agentEdits.json";
 export { default as agentMigrationReportSchema } from "./schemas/agentMigrationReport.json";
+export { default as agentTitleImportReportSchema } from "./schemas/agentTitleImportReport.json";
 
 export interface AgentImportRequest {
   sourcePath: string;
+  outputPath?: string;
+  dryRun?: boolean;
+}
+
+export interface AgentTitleImportRequest {
+  titleId: string;
   outputPath?: string;
   dryRun?: boolean;
 }
@@ -123,4 +130,13 @@ export interface AgentMigrationReport {
     requirements: string[];
   };
   recoveryRequired: false;
+}
+
+/** A returned launch-info snapshot, not an original package or authoring draft. */
+export interface AgentTitleImportReport extends Omit<
+  AgentMigrationReport,
+  "reportVersion" | "source"
+> {
+  reportVersion: 2;
+  source: { kind: "title-id"; titleId: string; digest: string };
 }

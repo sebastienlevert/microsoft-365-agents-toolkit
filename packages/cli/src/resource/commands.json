@@ -57,12 +57,14 @@
     "description": "Import a local agent package or an external agent plugin into a Microsoft 365 Agents Toolkit project."
   },
   "import.agent": {
-    "description": "Import a local exported declarative-agent ZIP or folder into a new native project. Always noninteractive; no network, authentication, provisioning, or source execution.",
+    "description": "Create a new native agent project from exactly one local package (--source) or returned launch-info snapshot (--title-id). Local import is offline; Title ID uses existing silent authentication and read-only acquisition. No provisioning or source execution.",
     "options": {
       "source": "Local exported package ZIP or folder.",
-      "output": "Exact new project directory, not a parent directory. Defaults to <source-basename>-imported in the current directory."
+      "titleId": "Explicit Title ID, exclusive with --source. Requires an existing signed-in account; never initiates login or consent.",
+      "output": "Exact new project directory, not a parent directory. Defaults to <source-basename>-imported or <normalized-title-id>-imported in the current directory."
     },
-    "example": "Import a local exported package without changing its source"
+    "example": "Import a local exported package without changing its source",
+    "titleExample": "Clone a returned launch-info snapshot with the existing selected account"
   },
   "edit": {
     "description": "Apply approved local changes to an agent project."

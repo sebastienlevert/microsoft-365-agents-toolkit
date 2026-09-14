@@ -15,9 +15,17 @@ import {
 } from "@microsoft/teamsfx-api";
 import { getLocalizedString } from "../../common/localizeUtils";
 import { PackageGraph } from "./graph";
-import { artifactDigest, Artifacts, digest, object, parseJson } from "./model";
+import { artifactDigest, Artifacts, digest, JsonObject, object, parseJson } from "./model";
 import { knowledgeExtensions } from "./validation";
 import { migrationError } from "./errors";
+
+export function isTitleSnapshotProvenance(record: JsonObject | undefined): boolean {
+  return (
+    record?.reportVersion === 2 &&
+    record.ruleVersion === "agent-package/1" &&
+    object(record.source)?.kind === "title-id"
+  );
+}
 
 export function projectTrackingId(files: Artifacts): string | null {
   for (const name of ["m365agents.yml", "teamsapp.yml"]) {

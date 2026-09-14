@@ -40,6 +40,7 @@ import {
   PackageValidationFailureReason,
 } from "./errors";
 import { M365AppDefinition, M365AppEntity } from "./interface";
+import { launchInfoElementTypes } from "./serviceConstant";
 
 const M365ErrorSource = "M365";
 const M365ErrorComponent = "PackageService";
@@ -530,9 +531,7 @@ export class PackageService {
         {
           baseURL: serviceUrl,
           params: {
-            SupportedElementTypes:
-              // eslint-disable-next-line no-secrets/no-secrets
-              "Extensions,OfficeAddIns,ExchangeAddIns,FirstPartyPages,Dynamics,AAD,LineOfBusiness,StaticTabs,ComposeExtensions,Bots,GraphConnector,ConfigurableTabs,Activities,MeetingExtensionDefinition,OpenAIPlugins,Gpts,DeclarativeCopilots,Plugins",
+            SupportedElementTypes: launchInfoElementTypes.join(","),
           },
           headers: {
             Authorization: `Bearer ${token}`,

@@ -6,6 +6,11 @@ import { getLocalizedString } from "../../common/localizeUtils";
 import { UserCancelError } from "../../error";
 
 export type MigrationErrorCode =
+  | "AgentTitleSourceInvalid"
+  | "AgentTitleSourceUnsupported"
+  | "AgentTitleSourceIncomplete"
+  | "AgentTitleAuthenticationRequired"
+  | "AgentTitleRequestFailed"
   | "AgentPackageSourceInvalid"
   | "AgentPackageUnsupported"
   | "AgentPackageLimitExceeded"
@@ -29,7 +34,9 @@ export function migrationError(code: MigrationErrorCode, cause?: unknown): FxErr
     message: getLocalizedString(`error.agentMigration.${code}`),
     error: cause instanceof Error ? cause : undefined,
   };
-  return code === "AgentMigrationIoError" || code === "AgentMigrationRecoveryRequired"
+  return code === "AgentMigrationIoError" ||
+    code === "AgentMigrationRecoveryRequired" ||
+    code === "AgentTitleRequestFailed"
     ? new SystemError(options)
     : new UserError(options);
 }
@@ -40,4 +47,20 @@ export function cancelled(signal?: AbortSignal): FxError | undefined {
 
 export function isErrno(error: unknown, code: string): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === code;
+}
+
+export type TitleFailureReason =
+  | "blocked-snapshot"
+  | "element-groups"
+  | "da-schema-invalid"
+  | "url-policy"
+  | "url-invalid"
+  | "mos-origin"
+  | "mos-base-path"
+  | "generated-package-invalid";
+
+export function titleFailure(code: MigrationErrorCode, reason: TitleFailureReason): FxError {
+  const failure = migrationError(code);
+  failure.message += ` ${getLocalizedString("agentMigration.title.reason", reason)}`;
+  return failure;
 }
