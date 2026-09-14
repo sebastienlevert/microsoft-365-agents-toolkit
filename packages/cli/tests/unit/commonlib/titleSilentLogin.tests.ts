@@ -20,9 +20,20 @@ class SyntheticLogin extends CodeFlowLogin {
       "title-test"
     );
   }
-  override async reloadCache(): Promise<void> {}
+  protected override async loadAccountIdFromCache(): Promise<string | undefined> {
+    return undefined;
+  }
   protected override async loadTenantIdFromCache(): Promise<string | undefined> {
     return undefined;
+  }
+}
+
+class CachedSyntheticLogin extends SyntheticLogin {
+  protected override async loadAccountIdFromCache(): Promise<string | undefined> {
+    return "synthetic-home";
+  }
+  protected override async loadTenantIdFromCache(): Promise<string | undefined> {
+    return "synthetic-tenant";
   }
 }
 
@@ -55,28 +66,35 @@ describe("TTI-05: strict silent native token status", () => {
       expect(http.request).not.toHaveBeenCalled();
     }
   );
-  it("returns only an already available silent token", async () => {
-    const login = new SyntheticLogin();
-    login.account = account;
-    const response: AuthenticationResult = {
-      authority: "https://login.microsoftonline.com/common",
-      uniqueId: "synthetic",
-      tenantId: "synthetic-tenant",
-      scopes: ["synthetic-scope"],
-      account,
-      idToken: "",
-      idTokenClaims: {},
-      accessToken: "synthetic-token",
-      fromCache: true,
-      expiresOn: new Date(Date.now() + 60000),
-      correlationId: "synthetic-correlation",
-      tokenType: "Bearer",
-    };
-    vi.spyOn(login.pca, "acquireTokenSilent").mockResolvedValue(response);
-    vi.spyOn(login, "login");
-    const result = await login.getTokenByScopes(["synthetic-scope"], false, undefined, true);
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) expect(result.value).toBe("synthetic-token");
-    expect(login.login).not.toHaveBeenCalled();
-  });
+  it.each([false, true])(
+    "loads an existing cached account/token without login (cold=%s)",
+    async (cold) => {
+      const login = cold ? new CachedSyntheticLogin() : new SyntheticLogin();
+      if (!cold) login.account = account;
+      vi.spyOn(login, "reloadCache");
+      vi.spyOn(login.pca, "getAllAccounts").mockResolvedValue([account]);
+      const response: AuthenticationResult = {
+        authority: "https://login.microsoftonline.com/common",
+        uniqueId: "synthetic",
+        tenantId: "synthetic-tenant",
+        scopes: ["synthetic-scope"],
+        account,
+        idToken: "",
+        idTokenClaims: {},
+        accessToken: "synthetic-token",
+        fromCache: true,
+        expiresOn: new Date(Date.now() + 60000),
+        correlationId: "synthetic-correlation",
+        tokenType: "Bearer",
+      };
+      vi.spyOn(login.pca, "acquireTokenSilent").mockResolvedValue(response);
+      vi.spyOn(login, "login");
+      const result = await login.getTokenByScopes(["synthetic-scope"], false, undefined, true);
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) expect(result.value).toBe("synthetic-token");
+      expect(login.account).toEqual(account);
+      if (cold) expect(login.reloadCache).toHaveBeenCalledOnce();
+      expect(login.login).not.toHaveBeenCalled();
+    }
+  );
 });
